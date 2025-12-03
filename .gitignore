@@ -1,0 +1,4 @@
+venv/
+.idea/
+pytest.ini
+Build_Upload.md
