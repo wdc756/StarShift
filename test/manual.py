@@ -5,7 +5,6 @@ from starshift import *
 class Test(Shift):
     __shift_config__ = ShiftConfig(verbosity=3)
 
-
     string: str = "Hello"
     integer: int
     any: Any
@@ -15,6 +14,9 @@ class Test(Shift):
     dict_var: Dict[str, int]
     unannotated = False
 
+    def __pre_init__(self, data) -> None:
+        print("Pre Init")
+        print(data)
 
     @shift_validator("integer")
     def validate_func(self, val: int) -> bool:
@@ -27,10 +29,9 @@ class Test(Shift):
         val["new_key"] = 0
         self.dict_var = val
 
-
-
-    def __post_init__(self):
+    def __post_init__(self, data) -> None:
         print("Post Init")
+        self.print_func()
 
 
     def print_func(self):
@@ -43,8 +44,8 @@ class Test(Shift):
         print(self.dict_var)
         print(self.unannotated)
 
-t1 = Test(string="Hello World!", integer=100, any=Test, optional="Hello There!", union="Hello", list_var=["Hello", "0"], dict_var={"0": 1, "str2": 2}, unannotated="Hello")
-print()
-print()
-print()
-t1.print_func()
+
+
+t1 = Test(string="Hello World!", integer=0, any=Test,
+          optional="Hello There!", union="Hello", list_var=["Hello", "0"],
+          dict_var={"0": 1, "str2": 2}, unannotated="Hello")
