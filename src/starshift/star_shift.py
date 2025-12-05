@@ -25,6 +25,10 @@ class ShiftConfig:
             Whether to validate any vars
             False: When instantiated skip validation and DONT SET VARS!
             True: When instantiated validate vars and set vars
+        allow_unmatched_args: bool = False
+            Whether allow unmatched arguments (args that don't match any cls attributes)
+            False: When unmatched arg is passed throw
+            True: When unmatched arg is passed create new class attribute and set
         allow_any: bool = True
             Whether to allow vars to use the `Any` type
             False: If var is `Any` type throw
@@ -57,9 +61,10 @@ class ShiftConfig:
             False: If any field is a Shift sub class throw
             True: If any field is a Shift sub class validate var
     """
+
     verbosity: int = 0
     do_validation: bool = True
-    # allow_unmatched_attributes: bool = True
+    allow_unmatched_args: bool = False
     allow_any: bool = True
     allow_defaults: bool = True
     allow_non_annotated: bool = True
@@ -70,16 +75,48 @@ class ShiftConfig:
 
 DEFAULT_SHIFT_CONFIG = ShiftConfig()
 
-def shift_validator(field: str) -> Callable:
+
+
+def shift_validator(*fields: str) -> Callable:
+    """
+    Decorator to mark a function as a validator for one or more fields.
+    This must return `True` else the whole validation will fail.
+
+    Usage:
+        @shift_validator('age')
+        def validate_age(self, data: dict[str, Any], field: str) -> bool:
+
+        @shift_validator('age', 'height', 'weight')
+        def validate_positive(self, data: dict[str, Any], field: str) -> bool:
+
+    Note data is the whole dictionary used to build the shift subclass, and field is the attribute set
+    """
+
     def decorator(func) -> Callable:
-        func.__validator_for__ = field
+        # Store as a tuple of fields instead of a single field to allow multiple args
+        func.__validator_for__ = fields
         return func
+
     return decorator
 
-def shift_setter(field: str) -> Callable:
+def shift_setter(*fields: str) -> Callable:
+    """
+    Decorator to mark a function as a setter for one or more fields.
+
+    Usage:
+        @shift_setter('name')
+        def set_name(self, data: dict[str, Any], field: str) -> None:
+
+        @shift_setter('first_name', 'last_name')
+        def set_names(self, data: dict[str, Any], field: str) -> None:
+
+    Note data is the whole dictionary used to build the shift subclass, and field is the attribute set
+    """
+
     def decorator(func) -> Callable:
-        func.__setter_for__ = field
+        func.__setter_for__ = fields
         return func
+
     return decorator
 
 
@@ -108,6 +145,28 @@ def _log_verbose(verbosity: int, msg: list[str]):
 
 
 # Note that cls is Any here because it can be any class
+# def _set_validators_and_setters(cls: Type) -> None:
+#     # Create new fields in cls
+#     cls.__validators__ = {}
+#     cls.__setters__ = {}
+#
+#     # Fill validators and setters
+#     for name, value in cls.__dict__.items():
+#         # I would put a debug statement here, but shift_config isn't set yet when this is called
+#
+#         # If value is callable test if it has a shift marker
+#         if callable(value):
+#             # If shift_validator, add to validators
+#             if hasattr(value, '__validator_for__'):
+#                 field = value.__validator_for__
+#                 cls.__validators__[field] = value
+#                 continue
+#
+#             # If shift_setter, add to setters
+#             elif hasattr(value, '__setter_for__'):
+#                 field = value.__setter_for__
+#                 cls.__setters__[field] = value
+#                 continue
 def _set_validators_and_setters(cls: Type) -> None:
     # Create new fields in cls
     cls.__validators__ = {}
@@ -115,20 +174,20 @@ def _set_validators_and_setters(cls: Type) -> None:
 
     # Fill validators and setters
     for name, value in cls.__dict__.items():
-        # I would put a debug statement here, but shift_config isn't set yet when this is called
-
         # If value is callable test if it has a shift marker
         if callable(value):
-            # If shift_validator, add to validators
+            # If shift_validator, add to validators for EACH field
             if hasattr(value, '__validator_for__'):
-                field = value.__validator_for__
-                cls.__validators__[field] = value
+                fields = value.__validator_for__  # Now a tuple
+                for field in fields:
+                    cls.__validators__[field] = value
                 continue
 
-            # If shift_setter, add to setters
+            # If shift_setter, add to setters for EACH field
             elif hasattr(value, '__setter_for__'):
-                field = value.__setter_for__
-                cls.__setters__[field] = value
+                fields = value.__setter_for__  # Now a tuple
+                for field in fields:
+                    cls.__setters__[field] = value
                 continue
 
 
@@ -183,7 +242,7 @@ def _set_field(self: Any, shift_config: ShiftConfig, model_name: str, data: dict
         # If shift_setters not allowed, throw
         if not shift_config.allow_shift_setters:
             raise ValueError(f"`{model_name} has a `@shift_setter({field})` decorator but `shift_config.allow_shift_setters` is `False`")
-        setters[field](self, data)
+        setters[field](self, data, field)
         return
 
     # Else if typ is a shift subclass and val is a dict, set with validation
@@ -328,7 +387,7 @@ def _validate_field(self: Any, shift_config: ShiftConfig, model_name: str, data:
             raise ValueError(f"`{model_name}`: a shift_validator decorator is being used for `{field}`, but `shift_config.allow_shift_validators` is `False`")
 
         # If invalid, throw
-        if not validators[field](self, data):
+        if not validators[field](self, data, field):
             raise ValueError(f"`{model_name}`: `shift_validator({field})` validation failed (did not return True)")
 
         # If shift_validators have precedence, validate
@@ -407,13 +466,36 @@ def _validate(self: Any, shift_config: ShiftConfig, model_name: str, data: dict[
 
     _log_verbose(shift_config.verbosity, [f"Validated class `{model_name}`"])
 
+def _handle_unmatched_fields(self: Any, shift_config: ShiftConfig, model_name: str, data: dict[str, Any],
+                             setters: dict[str, Callable]):
+    _log_verbose(shift_config.verbosity, ["", "Checking for unmatched fields"])
+
+    # Get all keys in data that aren't in fields
+    args = []
+    fields = list(self.__fields__.keys())
+    fields.extend(list(self.__annotations__.keys()))
+    for arg in data:
+        if arg not in fields:
+            args.append(arg)
+
+    # If any unmatched fields left, they're unmatched
+    if len(args) > 0:
+        if not shift_config.allow_unmatched_args:
+            raise ValueError(
+                f"`{model_name}` has unmatched args fields but `shift_config.allow_unmatched_args` is `False`")
+        _log_verbose(shift_config.verbosity, ["", "unmatched keys found, setting", f"Unmatched keys: {args}"])
+
+        # For arg add new attr and set
+        for arg in args:
+            _log_verbose(shift_config.verbosity, ["", "", f"set {arg}"])
+            _set_field(self, shift_config, model_name, data, setters, arg, None, data[arg])
+
 class Shift:
     """
-    This is a helper base class that can be used on any normal python class to automatically validate class casting
-    from dicts (`cls(**dict)`)
+    This is a helper base class that can be used on any normal python class to automatically validate class attributes.
 
     To use this class, have any other class you want to validate inherit `Shift`. Then annotate each var or cls
-    attribute you want to validate and build the class from your dict.
+    attribute you want to validate and build the class from a dict or using named-args
 
     Parameters:
         __shift_config__: ShiftConfig = None
@@ -458,6 +540,9 @@ class Shift:
 
             # Run validation
             _validate(self, shift_config, model_name, data, validators, setters)
+
+            # Handle unmatched fields
+            _handle_unmatched_fields(self, shift_config, model_name, data, setters)
 
         # If cls has __post_init__(), call
         if "__post_init__" in self.__fields__:

@@ -58,18 +58,30 @@ class Default(Shift):
     integer: int = 10
 
 class ShiftValidator(Shift):
+    string: str
     integer: int
+    float: float
 
-    @shift_validator('integer')
-    def _validate_integer(self, data) -> bool:
-        return data['integer'] > 10
+    @shift_validator('string')
+    def _validate_string(self, data, field) -> bool:
+        return len(data[field]) > 0
+
+    @shift_validator('integer', 'float')
+    def _validate_numbers(self, data, field) -> bool:
+        return data[field] > 10.0
 
 class ShiftSetter(Shift):
+    string: str
     integer: int
+    float: float
 
-    @shift_setter('integer')
-    def _set_integer(self, data):
-        self.integer = data['integer'] + 1
+    @shift_setter('string')
+    def _set_integer(self, data, field):
+        setattr(self, field, data[field] + " world")
+
+    @shift_setter('integer', 'float')
+    def _set_numbers(self, data, field):
+        setattr(self, field, data[field] + 1)
 
 # Validation
 ############
@@ -186,15 +198,25 @@ def test_default():
     assert default.integer == 10
 
 def test_shift_validator():
-    shift_validator = ShiftValidator(integer=11)
+    shift_validator = ShiftValidator(string='hello', integer=11, float=11.0)
+    assert shift_validator.string == 'hello'
     assert shift_validator.integer == 11
+    assert shift_validator.float == 11.0
 
     with pytest.raises(ValueError):
-        shift_validator = ShiftValidator(integer=0)
+        shift_validator = ShiftValidator(string='', integer=11, float=11.0)
+
+    with pytest.raises(ValueError):
+        shift_validator = ShiftValidator(string='hello', integer=0, float=11.0)
+
+    with pytest.raises(ValueError):
+        shift_validator = ShiftValidator(string='hello', integer=11, float=0.0)
 
 def test_shift_setter():
-    shift_setter = ShiftSetter(integer=10)
-    assert shift_setter.integer == 11
+    shift_setter = ShiftSetter(string='hello', integer=11, float=11.0)
+    assert shift_setter.string == 'hello world'
+    assert shift_setter.integer == 12
+    assert shift_setter.float == 12.0
 
 
 # Pre-Post Init
@@ -320,6 +342,17 @@ def test_shift_config_do_validation():
             do_validation = data['do_validation']
     test_shift_config = TestShiftConfig(do_validation=0)
     assert test_shift_config.do_validation == 0
+
+def test_shift_config_allow_unmatched_args():
+    class TestShiftConfig(Shift):
+        """This is a string to make python happy"""
+    with pytest.raises(ValueError):
+        test_shift_config = TestShiftConfig(allow_unmatched_args=True)
+
+    class TestShiftConfig(Shift):
+        __shift_config__ = ShiftConfig(allow_unmatched_args=True)
+    test_shift_config = TestShiftConfig(allow_unmatched_args=True)
+    assert test_shift_config.allow_unmatched_args == True
 
 def test_shift_config_allow_any():
     class TestShiftConfig(Shift):

@@ -49,11 +49,19 @@ class Default(Shift):
     integer: int = 10
 
 class ShiftValidator(Shift):
-    integer: int
+    __shift_config__ = ShiftConfig(verbosity=3)
 
-    @shift_validator('integer')
-    def _validate_integer(self, data) -> bool:
-        return data['integer'] > 10
+    string: str
+    integer: int
+    float: float
+
+    @shift_validator('string')
+    def _validate_string(self, data, field) -> bool:
+        return len(data[field]) > 0
+
+    @shift_validator('integer', 'float')
+    def _validate_numbers(self, data, field) -> bool:
+        return data[field] > 10.0
 
 class ShiftSetter(Shift):
     integer: int
@@ -61,3 +69,22 @@ class ShiftSetter(Shift):
     @shift_setter('integer')
     def _set_integer(self, data):
         self.integer = data['integer'] + 1
+
+
+
+def manual_test():
+    # shift_validator = ShiftValidator(string='hello', integer=11, float=11.0)
+    # assert shift_validator.string == 'hello'
+    # assert shift_validator.integer == 11
+    # assert shift_validator.float == 11.0
+
+    # with pytest.raises(ValueError):
+    shift_validator = ShiftValidator(string='', integer=11, float=11.0)
+
+    # with pytest.raises(ValueError):
+    # shift_validator = ShiftValidator(string='hello', integer=0, float=11.0)
+
+    # with pytest.raises(ValueError):
+    # shift_validator = ShiftValidator(string='hello', integer=11, float=0.0)
+if __name__ == '__main__':
+    manual_test()
