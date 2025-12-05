@@ -1,51 +1,63 @@
 from typing import Any, Optional, Union, List, Dict
 from starshift import *
 
-
-class Test(Shift):
-    __shift_config__ = ShiftConfig(verbosity=3)
-
-    string: str = "Hello"
+class Builtins(Shift):
+    boolean: bool
     integer: int
-    any: Any
-    optional: Optional[str]
-    union: Union[str, int]
-    list_var: List[str]
-    dict_var: Dict[str, int]
-    unannotated = False
+    float: float
+    string: str
+    lis: list[int]
+    tup: tuple[str, int]
+    set: set[int]
+    dct: dict[str, int]
 
-    def __pre_init__(self, data) -> None:
-        print("Pre Init")
-        print(data)
+class Mini(Shift):
+    string: str
+    integer: int
 
-    @shift_validator("integer")
-    def validate_func(self, val: int) -> bool:
-        if val < 0 or val > 100:
-            raise ValueError("`integer` must be between 0 and 100")
-        return True
+class Container(Shift):
+    string: str
+    mini: Mini
 
-    @shift_setter("dict_var")
-    def set_dict_var(self, val: dict) -> None:
-        val["new_key"] = 0
-        self.dict_var = val
+class MultiContainer(Shift):
+    string: str
+    mini_lis: list[Mini]
+    mini_tup: tuple[str, Mini]
+    mini_set: set[Mini]
+    mini_dct: dict[str, Mini]
 
-    def __post_init__(self, data) -> None:
-        print("Post Init")
-        self.print_func()
+# We have to use this because any values in Init will be overwritten after pre_init
+global_was_pre_init_called = False
 
+class Init(Shift):
+    string: str
+    integer: int
 
-    def print_func(self):
-        print(self.string)
-        print(self.integer)
-        print(self.any)
-        print(self.optional)
-        print(self.union)
-        print(self.list_var)
-        print(self.dict_var)
-        print(self.unannotated)
+    post_init = False
+    post_init_val = None
 
+    def __pre_init__(self, data: dict[str, Any]) -> None:
+        global global_was_pre_init_called
+        global_was_pre_init_called = True
 
+    def __post_init__(self, data: dict[str, Any]) -> None:
+        self.post_init = True
+        self.post_init_val = data['integer']
 
-t1 = Test(string="Hello World!", integer=0, any=Test,
-          optional="Hello There!", union="Hello", list_var=["Hello", "0"],
-          dict_var={"0": 1, "str2": 2}, unannotated="Hello")
+class Default(Shift):
+    string: str
+    integer: int = 10
+
+class ShiftValidator(Shift):
+    integer: int
+
+    @shift_validator('integer')
+    def _validate_integer(self, data) -> bool:
+        return data['integer'] > 10
+
+class ShiftSetter(Shift):
+    integer: int
+
+    @shift_setter('integer')
+    def _set_integer(self, data):
+        self.integer = data['integer'] + 1

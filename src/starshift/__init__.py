@@ -1,1 +1,1 @@
-from .star_shift import DEFAULT_SHIFT_CONFIG, ShiftConfig, shift_validator, shift_setter, Shift
+from .star_shift import ShiftConfig, DEFAULT_SHIFT_CONFIG, shift_validator, shift_setter, Shift

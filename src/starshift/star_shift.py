@@ -4,6 +4,9 @@ from dataclasses import dataclass
 # Used to check types in _validate()
 from typing import get_origin, get_args, Any, Union
 
+# used for type hints in functions
+from typing import Type, Callable
+
 
 
 @dataclass
@@ -18,6 +21,10 @@ class ShiftConfig:
             1: Validation step messages
             2. Validation var step messages
             3: All config and attribute messages
+        do_validation: bool = True
+            Whether to validate any vars
+            False: When instantiated skip validation and DONT SET VARS!
+            True: When instantiated validate vars and set vars
         allow_any: bool = True
             Whether to allow vars to use the `Any` type
             False: If var is `Any` type throw
@@ -28,7 +35,7 @@ class ShiftConfig:
             True: If var.default is not `None` and val.value is `None` attempt validate with default
         allow_non_annotated: bool = True
             Whether to allow non-annotated vars (no type hint)
-            False: If var.annotation is `None` throw error
+            False: If var.annotation is `None` throw
             True: If var.annotation is `None` set var (no type checks for validation unless `shit_validator` is set for
             var)
         allow_shift_validators: bool = True
@@ -43,28 +50,35 @@ class ShiftConfig:
             True: If shift_validator(var) is not `None` and returns True, validate var
         allow_shift_setters: bool = True
             Whether to allow custom shift setters (custom setters for vars via decorator: `@shift_setter(var) -> None`)
-            False: If shift_setter(var) is not `None` throw error
+            False: If shift_setter(var) is not `None` throw
             True: If shift_setter(var) is not `None` call
+        allow_nested_shift_classes: bool = True
+            Whether to allow Shift subclasses during validation
+            False: If any field is a Shift sub class throw
+            True: If any field is a Shift sub class validate var
     """
     verbosity: int = 0
+    do_validation: bool = True
+    # allow_unmatched_attributes: bool = True
     allow_any: bool = True
     allow_defaults: bool = True
     allow_non_annotated: bool = True
     allow_shift_validators: bool = True
     shift_validators_have_precedence: bool = True
     allow_shift_setters: bool = True
+    allow_nested_shift_classes: bool = True
 
 DEFAULT_SHIFT_CONFIG = ShiftConfig()
 
-def shift_validator(field: str):
-    def decorator(func):
+def shift_validator(field: str) -> Callable:
+    def decorator(func) -> Callable:
         func.__validator_for__ = field
         return func
     return decorator
 
-def shift_setter(field: str):
-    def decorator(func):
-        func.__validator_for__ = field
+def shift_setter(field: str) -> Callable:
+    def decorator(func) -> Callable:
+        func.__setter_for__ = field
         return func
     return decorator
 
@@ -91,8 +105,10 @@ def _log_verbose(verbosity: int, msg: list[str]):
         _log(msg[verbosity - 1])
         return
 
+
+
 # Note that cls is Any here because it can be any class
-def _set_validators_and_setters(cls: Any) -> None:
+def _set_validators_and_setters(cls: Type) -> None:
     # Create new fields in cls
     cls.__validators__ = {}
     cls.__setters__ = {}
@@ -115,6 +131,8 @@ def _set_validators_and_setters(cls: Any) -> None:
                 cls.__setters__[field] = value
                 continue
 
+
+
 # Note that self is not annotated as Shift because that's undefined here
 def _get_shift_config(self: Any, model_name: str) -> ShiftConfig:
     # Get ShiftConfig (should always be `__shift_config__`) and check the type
@@ -132,9 +150,7 @@ def _get_shift_config(self: Any, model_name: str) -> ShiftConfig:
     _log_verbose(shift_config.verbosity, ["", "", "", f"shift_config: {shift_config}"])
     return shift_config
 
-
-
-def _get_val(self: Any, field: str, data: Any, shift_config: ShiftConfig, model_name: str) -> Any:
+def _get_val(self: Any, shift_config: ShiftConfig, model_name: str, data: dict[str, Any], field: str) -> Any:
     # Get val from data if in data
     if field in data:
         return data[field]
@@ -146,18 +162,44 @@ def _get_val(self: Any, field: str, data: Any, shift_config: ShiftConfig, model_
                 f"{model_name}: `{field}` was not set and there is a default, but `shift_config.allow_defaults` is `False`")
         return self.__fields__.get(field)
 
-def _set_field(self: Any, field: str, val: Any, shift_config: ShiftConfig, model_name: str, setters: Any) -> None:
+def _is_shift_subclass(shift_config: ShiftConfig, typ: Any) -> bool:
+    try:
+        if isinstance(typ, type) and issubclass(typ, Shift):
+            if not shift_config.allow_nested_shift_classes:
+                raise ValueError(
+                    f"`{typ}` is a nested Shift class, but `shift_config.allow_nested_shift_classes` is `False`")
+            return True
+    except TypeError:
+        # issubclass raises TypeError for non-classes like Union, List, etc.
+        return False
+    return False
+
+
+
+def _set_field(self: Any, shift_config: ShiftConfig, model_name: str, data: dict[str, Any],
+               setters: dict[str, Callable], field: str, typ: Any, val: Any) -> None:
     # If shift_setter(field), use
     if field in setters:
         # If shift_setters not allowed, throw
         if not shift_config.allow_shift_setters:
             raise ValueError(f"`{model_name} has a `@shift_setter({field})` decorator but `shift_config.allow_shift_setters` is `False`")
-        setters[field](self, val)
+        setters[field](self, data)
         return
-    # Else set here
+
+    # Else if typ is a shift subclass and val is a dict, set with validation
+    elif _is_shift_subclass(shift_config, typ) and isinstance(val, dict):
+        try:
+            setattr(self, field, typ(**val))
+        except Exception as e:
+            raise TypeError(f"`{model_name}`: Failed to construct `{typ.__name__}` for field `{field}`: {e}")
+        return
+
+    # Else set as normal value
     setattr(self, field, val)
 
-def _validate_union_optional(typ: Any, val: Any, shift_config: ShiftConfig) -> bool:
+
+
+def _validate_union_optional(shift_config: ShiftConfig, typ: Any, val: Any) -> bool:
     # If typ not a Union (Optional = Union[type, None]), invalidate
     if not get_origin(typ) is Union:
         return False
@@ -165,31 +207,55 @@ def _validate_union_optional(typ: Any, val: Any, shift_config: ShiftConfig) -> b
     # If val is any arg(assume arg is not empty), validate
     args = get_args(typ)
     for arg in args:
-        if not _validate_value(arg, val, shift_config):
+        if _validate_value(shift_config, arg, val):
             return True
 
     # val is any typ, validate
     return False
 
-def _validate_list(typ: Any, lis: Any, shift_config: ShiftConfig) -> bool:
-    # If typ or lis are not a list, return false
-    if not get_origin(typ) is list or not isinstance(lis, list):
+def _validate_tuple(shift_config: ShiftConfig, typ: Any, tup: Any) -> bool:
+    # If typ or tup not a tuple, return False
+    if not (get_origin(typ) is tuple or isinstance(tup, tuple)):
         return False
 
-    # If typ is un-annotated or lis is empty, validate
+    # If typ is un-annotated or tup is empty, validate
     args = get_args(typ)
-    if not args or not lis:
+    if not args or not tup:
         return True
 
-    # If any li in lis is not an arg, return false
-    for li in lis:
-        if not _validate_value(args[0], li, shift_config):
+    # If len(args) does not match len(tup), return false
+    if not len(args) == len(tup):
+        return False
+
+    # If any item in tup not arg, return false
+    for item, arg in zip(tup, args):
+        if not _validate_value(shift_config, arg, item):
             return False
 
-    # All li in lis are typ, validate
+    # All items in tup are valid, validate
     return True
 
-def _validate_dict(typ: Any, dct: Any, shift_config: ShiftConfig) -> bool:
+def _validate_list_set(shift_config: ShiftConfig, typ: Any, var: Any) -> bool:
+    # If typ or var are not a list or set, return false
+    origin = get_origin(typ)
+    if not (origin is list or origin is set or
+            isinstance(var, list) or isinstance(var, set)):
+        return False
+
+    # If typ is un-annotated or var is empty, validate
+    args = get_args(typ)
+    if not args or not var:
+        return True
+
+    # If any item in var is not an arg, return false
+    for item in var:
+        if not _validate_value(shift_config, args[0], item):
+            return False
+
+    # All item in var are typ, validate
+    return True
+
+def _validate_dict(shift_config: ShiftConfig, typ: Any, dct: Any) -> bool:
     # If typ or dct are not a dict, invalidate
     if not get_origin(typ) is dict or not isinstance(dct, dict):
         return False
@@ -201,30 +267,44 @@ def _validate_dict(typ: Any, dct: Any, shift_config: ShiftConfig) -> bool:
 
     # If any key is not arg[0], invalidate
     for key in dct.keys():
-        if not _validate_value(args[0], key, shift_config):
+        if not _validate_value(shift_config, args[0], key):
             return False
 
     # If args[1] is defined and any val in dct.values is not instance, invalidate
     if len(args) > 1:
         for key in dct.keys():
-            if not _validate_value(args[1], dct.get(key), shift_config):
+            if not _validate_value(shift_config, args[1], dct.get(key)):
                 return False
 
     # All key-val in dct match typ, validate
     return True
 
-def _validate_value(typ: Any, val: Any, shift_config: ShiftConfig) -> bool:
+def _validate_value(shift_config: ShiftConfig, typ: Any, val: Any) -> bool:
     _log_verbose(shift_config.verbosity, ["", "", f"Attempting `{val}` validation against `{typ}`"])
 
     # If complex type validates, return validation
-    if shift_config.allow_any and typ is Any:
+    if typ is Any:
+        if not shift_config.allow_any:
+            raise ValueError(f"Type is `Any` but shift_config.allow_any is `False`")
         return True
-    elif _validate_union_optional(typ, val, shift_config):
+    elif _validate_tuple(shift_config, typ, val):
         return True
-    elif _validate_list(typ, val, shift_config):
+    elif _validate_union_optional(shift_config, typ, val):
         return True
-    elif _validate_dict(typ, val, shift_config):
+    elif _validate_list_set(shift_config, typ, val):
         return True
+    elif _validate_dict(shift_config, typ, val):
+        return True
+    # If shift subclass, it can validate itself, so validate on this level
+    elif _is_shift_subclass(shift_config, typ):
+        # If already a type, validate
+        if isinstance(val, typ):
+            return True
+        # If it's a dict, we'll construct it in _set_field, so validate
+        elif isinstance(val, dict):
+            return True
+        # Otherwise invalid
+        return False
 
     # If no complex type validated but simple validation works, validate
     # Use try block here to gracefully handle invalid types
@@ -237,19 +317,8 @@ def _validate_value(typ: Any, val: Any, shift_config: ShiftConfig) -> bool:
     # If no type validated, invalidate
     return False
 
-def _validate_shift_validator(self: Any, shift_config: ShiftConfig, model_name: str, val: Any, field: str, validators: Any) -> bool:
-    # If shift_validator(field), handle
-    if field in validators:
-        # If shift_validators not allowed, throw
-        if not shift_config.allow_shift_validators:
-            raise ValueError(f"`{model_name}` has a `@shift_validators({field})` decorator but `shift_config.allow_shift_validators` is `False`")
-
-        _log_verbose(shift_config.verbosity, ["", "", f"Using f{validators[field]} to validate `{field}`"])
-        return validators[field](self, val)
-    # Else false because we can't validate here
-    return False
-
-def _validate_field(self: Any, field: str, typ: Any, val: Any, shift_config: ShiftConfig, model_name: str, validators: Any) -> bool:
+def _validate_field(self: Any, shift_config: ShiftConfig, model_name: str, data: dict[str, Any],
+                    validators: dict[str, Callable], field: str, typ: Any, val: Any) -> bool:
     _log_verbose(shift_config.verbosity, ["", "", f"Attempting `{field}` validation against `{typ}`"])
 
     # If shift_validator(field), handle
@@ -257,23 +326,41 @@ def _validate_field(self: Any, field: str, typ: Any, val: Any, shift_config: Shi
         # If shift_validators not allowed, throw
         if not shift_config.allow_shift_validators:
             raise ValueError(f"`{model_name}`: a shift_validator decorator is being used for `{field}`, but `shift_config.allow_shift_validators` is `False`")
-        return validators[field](self, val)
-    # Else use default validator
-    return _validate_value(typ, val, shift_config)
 
-def _validate_annotated(self: Any, shift_config: ShiftConfig, model_name: str, data: Any, annotations: Any, validators: Any, setters: Any) -> None:
+        # If invalid, throw
+        if not validators[field](self, data):
+            raise ValueError(f"`{model_name}`: `shift_validator({field})` validation failed (did not return True)")
+
+        # If shift_validators have precedence, validate
+        if shift_config.shift_validators_have_precedence:
+            return True
+        # Else validate normally
+        return _validate_value(shift_config, typ, data)
+
+    # Else use default validator
+    return _validate_value(shift_config, typ, val)
+
+def _validate_annotated(self: Any, shift_config: ShiftConfig, model_name: str, data: dict[str, Any],
+                        annotations: dict[str, Any], validators: dict[str, Callable],
+                        setters: dict[str, Callable]) -> None:
     _log_verbose(shift_config.verbosity, ["Validating fields"])
 
     for field, typ in annotations.items():
         # Get val
-        val = _get_val(self, field, data, shift_config, model_name)
+        val = _get_val(self, shift_config, model_name, data, field)
 
         # If val is validated against typ, set (if validation fails throw is done in function)
-        if _validate_field(self, field, typ, val, shift_config, model_name, validators):
+        if _validate_field(self, shift_config, model_name, data, validators, field, typ, val):
             _log_verbose(shift_config.verbosity, ["", "", f"Validated field `{field}`, setting"])
-            _set_field(self, field, val, shift_config, model_name, setters)
+            _set_field(self, shift_config, model_name, data, setters, field, typ, val)
+            continue
 
-def _validate_un_annotated(self: Any, shift_config: ShiftConfig, model_name: str, data: Any, annotations: Any, validators: Any, setters: Any) -> None:
+        # Else assume invalid (catch all throw)
+        raise TypeError(f"`{model_name}`: `{field}` has invalid type")
+
+def _validate_un_annotated(self: Any, shift_config: ShiftConfig, model_name: str, data: dict[str, Any],
+                           annotations: dict[str, Any], validators: dict[str, Callable],
+                           setters: dict[str, Callable]) -> None:
     _log_verbose(shift_config.verbosity, ["Setting un-annotated fields"])
 
     # Get all fields
@@ -300,12 +387,14 @@ def _validate_un_annotated(self: Any, shift_config: ShiftConfig, model_name: str
     # Set each field (assume user/interpreter validation)
     for field in fields.keys():
         # Get val
-        val = _get_val(self, field, data, shift_config, model_name)
+        val = _get_val(self, shift_config, model_name, data, field)
 
         # Set (setter errors are handled in function)
-        _set_field(self, field, val, shift_config, model_name, setters)
+        # Note that typ is None here because it's unannotated
+        _set_field(self, shift_config, model_name, data, setters, field, None, val)
 
-def _validate(self: Any, shift_config: ShiftConfig, model_name: str, data: Any, validators: Any, setters: Any) -> None:
+def _validate(self: Any, shift_config: ShiftConfig, model_name: str, data: dict[str, Any],
+              validators: dict[str, Callable], setters: dict[str, Callable]) -> None:
     _log_verbose(shift_config.verbosity, [f"Validating class `{model_name}`"])
 
     # Get annotation vars (dict[field, typ])
@@ -359,17 +448,18 @@ class Shift:
             _log_verbose(shift_config.verbosity, [f"Calling __pre_init__ for `{model_name}`"])
             self.__fields__["__pre_init__"](self, data)
 
-        # Get validators and setters
-        validators = self.__validators__
-        _log_verbose(shift_config.verbosity, ["", "", f"validators: {validators}"])
-        setters = self.__setters__
-        _log_verbose(shift_config.verbosity, ["", "", f"setters: {setters}"])
+        # Only run validation steps if configured to
+        if shift_config.do_validation:
+            # Get validators and setters
+            validators = self.__validators__
+            _log_verbose(shift_config.verbosity, ["", "", f"validators: {validators}"])
+            setters = self.__setters__
+            _log_verbose(shift_config.verbosity, ["", "", f"setters: {setters}"])
 
-        # Run validation
-        _validate(self, shift_config, model_name, data, validators, setters)
+            # Run validation
+            _validate(self, shift_config, model_name, data, validators, setters)
 
         # If cls has __post_init__(), call
         if "__post_init__" in self.__fields__:
             _log_verbose(shift_config.verbosity, [f"Calling __post_init__ for `{model_name}`"])
             self.__fields__["__post_init__"](self, data)
-
