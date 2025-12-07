@@ -390,10 +390,23 @@ def test_shift_config_shift_validators_have_precedence():
         __shift_config__ = ShiftConfig(shift_validators_have_precedence=False)
         shift_validators = True
         @shift_validator("shift_validators")
-        def _shift_validators(self, data):
+        def _shift_validators(self, data, field):
             return data['shift_validators'] > 10
     test_shift_config = TestShiftConfig(shift_validators=11)
     assert test_shift_config.shift_validators == 11
+
+def test_shift_config_use_shift_validators_first():
+    class TestShiftConfig(Shift):
+        __shift_config__ = ShiftConfig(use_shift_validators_first=True)
+        use_shift_validators_first = True
+        @shift_validator("use_shift_validators_first")
+        def _use_shift_validators_first(self, data, field):
+            if isinstance(data['use_shift_validators_first'], float):
+                raise AttributeError("use_shift_validators_first")
+            return data['use_shift_validators_first']
+    with pytest.raises(AttributeError):
+        test_shift_config = TestShiftConfig(use_shift_validators_first=3.14)
+
 
 def test_shift_config_allow_shift_setters():
     class TestShiftConfig(Shift):

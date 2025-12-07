@@ -1,3 +1,8 @@
+# Imports
+########################################################################################################################
+
+
+
 # Used to set up ShiftConfig
 from dataclasses import dataclass
 
@@ -8,6 +13,24 @@ from typing import get_origin, get_args, Any, Union
 from typing import Type, Callable
 
 
+
+# Misc Classes & Decorators
+########################################################################################################################
+
+
+
+# This just helps with ShiftConfig __repr__ and to_dict
+_shift_config_defaults: dict[str, Any] = {
+    "verbosity": 0,
+    "do_validation": True,
+    "allow_unmatched_args": False,
+    "allow_any": True,
+    "allow_defaults": True,
+    "allow_non_annotated": True,
+    "allow_shift_validators": True,
+    "shift_validators_have_precedence": True,
+    "use_shift_validators_first": False,
+}
 
 @dataclass
 class ShiftConfig:
@@ -52,6 +75,11 @@ class ShiftConfig:
             @shift_validator(field): validate var)
             False: If shift_validator(var) is not `None` and returns True, validate again using default validator
             True: If shift_validator(var) is not `None` and returns True, validate var
+        use_shift_validators_first: bool = False
+            Whether to perform built-in validation first or use a shift validator first for a given var
+            (if shift_validators_have_precedence is True, this will be ignored)
+            False: If shift_validator(var) is not `None`, use it after default validation
+            True: If shift_validator(var) is not `None`, use it before default validation
         allow_shift_setters: bool = True
             Whether to allow custom shift setters (custom setters for vars via decorator: `@shift_setter(var) -> None`)
             False: If shift_setter(var) is not `None` throw
@@ -70,12 +98,31 @@ class ShiftConfig:
     allow_non_annotated: bool = True
     allow_shift_validators: bool = True
     shift_validators_have_precedence: bool = True
+    use_shift_validators_first: bool = False
     allow_shift_setters: bool = True
     allow_nested_shift_classes: bool = True
 
+
+
+    def __repr__(self):
+        parts = []
+        for key, default_val in _shift_config_defaults.items():
+            val = getattr(self, key)
+            if val != default_val:
+                parts.append(f"{key}={val!r}")
+
+        args = ", ".join(parts)
+        return f"ShiftConfig({args})"
+
+    def to_dict(self) -> dict[str, Any]:
+        result = {}
+        for key, default_val in _shift_config_defaults.items():
+            val = getattr(self, key)
+            if val != default_val:
+                result[key] = val
+        return result
+
 DEFAULT_SHIFT_CONFIG = ShiftConfig()
-
-
 
 def shift_validator(*fields: str) -> Callable:
     """
@@ -121,6 +168,11 @@ def shift_setter(*fields: str) -> Callable:
 
 
 
+# Logging
+########################################################################################################################
+
+
+
 def _log(msg: str) -> None:
     # Only print if msg has text
     if msg and len(msg):
@@ -144,29 +196,11 @@ def _log_verbose(verbosity: int, msg: list[str]):
 
 
 
-# Note that cls is Any here because it can be any class
-# def _set_validators_and_setters(cls: Type) -> None:
-#     # Create new fields in cls
-#     cls.__validators__ = {}
-#     cls.__setters__ = {}
-#
-#     # Fill validators and setters
-#     for name, value in cls.__dict__.items():
-#         # I would put a debug statement here, but shift_config isn't set yet when this is called
-#
-#         # If value is callable test if it has a shift marker
-#         if callable(value):
-#             # If shift_validator, add to validators
-#             if hasattr(value, '__validator_for__'):
-#                 field = value.__validator_for__
-#                 cls.__validators__[field] = value
-#                 continue
-#
-#             # If shift_setter, add to setters
-#             elif hasattr(value, '__setter_for__'):
-#                 field = value.__setter_for__
-#                 cls.__setters__[field] = value
-#                 continue
+# Value Management Functions
+########################################################################################################################
+
+
+
 def _set_validators_and_setters(cls: Type) -> None:
     # Create new fields in cls
     cls.__validators__ = {}
@@ -176,21 +210,19 @@ def _set_validators_and_setters(cls: Type) -> None:
     for name, value in cls.__dict__.items():
         # If value is callable test if it has a shift marker
         if callable(value):
-            # If shift_validator, add to validators for EACH field
+            # If shift_validator, add to validators for each field
             if hasattr(value, '__validator_for__'):
-                fields = value.__validator_for__  # Now a tuple
+                fields = value.__validator_for__
                 for field in fields:
                     cls.__validators__[field] = value
                 continue
 
-            # If shift_setter, add to setters for EACH field
+            # If shift_setter, add to setters for each field
             elif hasattr(value, '__setter_for__'):
-                fields = value.__setter_for__  # Now a tuple
+                fields = value.__setter_for__
                 for field in fields:
                     cls.__setters__[field] = value
                 continue
-
-
 
 # Note that self is not annotated as Shift because that's undefined here
 def _get_shift_config(self: Any, model_name: str) -> ShiftConfig:
@@ -233,8 +265,6 @@ def _is_shift_subclass(shift_config: ShiftConfig, typ: Any) -> bool:
         return False
     return False
 
-
-
 def _set_field(self: Any, shift_config: ShiftConfig, model_name: str, data: dict[str, Any],
                setters: dict[str, Callable], field: str, typ: Any, val: Any) -> None:
     # If shift_setter(field), use
@@ -255,6 +285,11 @@ def _set_field(self: Any, shift_config: ShiftConfig, model_name: str, data: dict
 
     # Else set as normal value
     setattr(self, field, val)
+
+
+
+# Validation Functions
+########################################################################################################################
 
 
 
@@ -338,6 +373,20 @@ def _validate_dict(shift_config: ShiftConfig, typ: Any, dct: Any) -> bool:
     # All key-val in dct match typ, validate
     return True
 
+def _validate_shift_validator(self: Any, shift_config: ShiftConfig, model_name: str, data: dict[str, Any],
+                              validators: dict[str, Any], field: str) -> bool:
+    # If shift_validators not allowed, throw
+    if not shift_config.allow_shift_validators:
+        raise ValueError(
+            f"`{model_name}`: a shift_validator decorator is being used for `{field}`, but `shift_config.allow_shift_validators` is `False`")
+
+    # If invalid, throw
+    if not validators[field](self, data, field):
+        raise ValueError(f"`{model_name}`: `shift_validator({field})` validation failed (did not return True)")
+
+    # Validate
+    return True
+
 def _validate_value(shift_config: ShiftConfig, typ: Any, val: Any) -> bool:
     _log_verbose(shift_config.verbosity, ["", "", f"Attempting `{val}` validation against `{typ}`"])
 
@@ -382,19 +431,34 @@ def _validate_field(self: Any, shift_config: ShiftConfig, model_name: str, data:
 
     # If shift_validator(field), handle
     if field in validators:
-        # If shift_validators not allowed, throw
-        if not shift_config.allow_shift_validators:
-            raise ValueError(f"`{model_name}`: a shift_validator decorator is being used for `{field}`, but `shift_config.allow_shift_validators` is `False`")
+        # If use shift_validators before or they have precedence, use
+        if shift_config.use_shift_validators_first or shift_config.shift_validators_have_precedence:
+            # If shift_validator failed, return false
+            if not _validate_shift_validator(self, shift_config, model_name, data, validators, field):
+                return False
 
-        # If invalid, throw
-        if not validators[field](self, data, field):
-            raise ValueError(f"`{model_name}`: `shift_validator({field})` validation failed (did not return True)")
+            # If shift_validators have precedence, validate
+            if shift_config.shift_validators_have_precedence:
+                return True
 
-        # If shift_validators have precedence, validate
-        if shift_config.shift_validators_have_precedence:
+            # Else validate normally too
+            return _validate_value(shift_config, typ, data)
+
+        # Else use default validator then shift_validator
+        else:
+            # If normal validation failed, return false
+            if not _validate_value(shift_config, typ, data):
+                return False
+
+            # Then use shift_validator
+            if not _validate_shift_validator(self, shift_config, model_name, data, validators, field):
+                return False
+
+            # Validate
             return True
-        # Else validate normally
-        return _validate_value(shift_config, typ, data)
+
+
+
 
     # Else use default validator
     return _validate_value(shift_config, typ, val)
@@ -445,6 +509,11 @@ def _validate_un_annotated(self: Any, shift_config: ShiftConfig, model_name: str
 
     # Set each field (assume user/interpreter validation)
     for field in fields.keys():
+        # If shift_validator for field, validate against that first
+        if field in validators and not _validate_shift_validator(self, shift_config, model_name, data, validators, field):
+            raise ValueError(f"`{model_name}`: `{field}` shift_validator failed")
+
+
         # Get val
         val = _get_val(self, shift_config, model_name, data, field)
 
@@ -473,7 +542,8 @@ def _handle_unmatched_fields(self: Any, shift_config: ShiftConfig, model_name: s
     # Get all keys in data that aren't in fields
     args = []
     fields = list(self.__fields__.keys())
-    fields.extend(list(self.__annotations__.keys()))
+    annotations = getattr(self.__class__, "__annotations__", {})
+    fields.extend(annotations.keys())
     for arg in data:
         if arg not in fields:
             args.append(arg)
@@ -489,6 +559,13 @@ def _handle_unmatched_fields(self: Any, shift_config: ShiftConfig, model_name: s
         for arg in args:
             _log_verbose(shift_config.verbosity, ["", "", f"set {arg}"])
             _set_field(self, shift_config, model_name, data, setters, arg, None, data[arg])
+
+
+
+# Shift
+########################################################################################################################
+
+
 
 class Shift:
     """
@@ -537,6 +614,9 @@ class Shift:
             _log_verbose(shift_config.verbosity, ["", "", f"validators: {validators}"])
             setters = self.__setters__
             _log_verbose(shift_config.verbosity, ["", "", f"setters: {setters}"])
+
+            # Log class attributes
+            _log_verbose(shift_config.verbosity, ["", "", f"class attributes: {self.__fields__}"])
 
             # Run validation
             _validate(self, shift_config, model_name, data, validators, setters)
