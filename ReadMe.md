@@ -9,6 +9,8 @@ casting validation.
 
 Created by William Dean Coker
 
+### This is not uploaded yet, the link is dead for now
+
 This package is on the [PyPI](<add link here>), and can be installed with:
 
 ```bash
