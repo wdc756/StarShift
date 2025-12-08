@@ -5,6 +5,7 @@
 
 # Used to set up ShiftConfig
 from dataclasses import dataclass
+from tkinter import Misc
 
 # Used to check types in _validate()
 from typing import get_origin, get_args, Any, Union
@@ -38,59 +39,97 @@ class ShiftConfig:
     This dataclass holds all the configuration options for a Shift class
 
     Attributes:
-        verbosity: int = 0 [0, 3]
-            The level of debug messages to print
-            0: No debug messages
-            1: Validation step messages
-            2. Validation var step messages
-            3: All config and attribute messages
-        do_validation: bool = True
-            Whether to validate any vars
-            False: When instantiated skip validation and DONT SET VARS!
-            True: When instantiated validate vars and set vars
-        allow_unmatched_args: bool = False
-            Whether allow unmatched arguments (args that don't match any cls attributes)
-            False: When unmatched arg is passed throw
-            True: When unmatched arg is passed create new class attribute and set
-        allow_any: bool = True
-            Whether to allow vars to use the `Any` type
-            False: If var is `Any` type throw
-            True: If var is `Any` validate var
-        allow_defaults: bool = True
-            Whether to allow default values for vars
-            False: If var.default is not `None` throw
-            True: If var.default is not `None` and val.value is `None` attempt validate with default
-        allow_non_annotated: bool = True
-            Whether to allow non-annotated vars (no type hint)
-            False: If var.annotation is `None` throw
-            True: If var.annotation is `None` set var (no type checks for validation unless `shit_validator` is set for
-            var)
-        allow_shift_validators: bool = True
-            Whether to allow custom shift validators (custom validators for vars via decorator:
-            `@shift_validator(var) -> bool`) - note if this def sets the field, it will be overwritten
-            False: If shift_validator(var) is not `None` throw
-            True: If shift_validator(var) is not `None` call and validate var if it returns True
-        shift_validators_have_precedence: bool = True
-            Whether a shift_validador for a given var has precedence over the default validator (if
-            @shift_validator(field): validate var)
-            False: If shift_validator(var) is not `None` and returns True, validate again using default validator
-            True: If shift_validator(var) is not `None` and returns True, validate var
-        use_shift_validators_first: bool = False
-            Whether to perform built-in validation first or use a shift validator first for a given var
-            (if shift_validators_have_precedence is True, this will be ignored)
-            False: If shift_validator(var) is not `None`, use it after default validation
-            True: If shift_validator(var) is not `None`, use it before default validation
-        allow_shift_setters: bool = True
-            Whether to allow custom shift setters (custom setters for vars via decorator: `@shift_setter(var) -> None`)
-            False: If shift_setter(var) is not `None` throw
-            True: If shift_setter(var) is not `None` call
-        allow_nested_shift_classes: bool = True
-            Whether to allow Shift subclasses during validation
-            False: If any field is a Shift sub class throw
-            True: If any field is a Shift sub class validate var
+
+        Misc:
+            verbosity: int = 0 [0, 3]
+                The level of debug messages to print
+                0: No debug messages
+                1: Validation step messages
+                2. Validation var step messages
+                3: All config and attribute messages
+            catch_decorator_errors_early: bool = True
+                Whether to check decorator allowed config options early or to wait until they are called
+                False: If decorator is found when it is not allowed, wait to throw until decorator called
+                True: If decorator is found when it is not allowed, throw immediately
+
+        Validation:
+            do_validation: bool = True
+                Whether to validate any vars
+                False: When instantiated skip validation and DONT SET VARS!
+                True: When instantiated validate vars and set vars
+            allow_unmatched_args: bool = False
+                Whether allow unmatched arguments (args that don't match any cls attributes)
+                False: When unmatched arg is passed throw
+                True: When unmatched arg is passed create new class attribute and set
+            allow_any: bool = True
+                Whether to allow vars to use the `Any` type
+                False: If var is `Any` type throw
+                True: If var is `Any` validate var
+            allow_defaults: bool = True
+                Whether to allow default values for vars
+                False: If var.default is not `None` throw
+                True: If var.default is not `None` and val.value is `None` attempt validate with default
+            allow_non_annotated: bool = True
+                Whether to allow non-annotated vars (no type hint)
+                False: If var.annotation is `None` throw
+                True: If var.annotation is `None` set var (no type checks for validation unless `shit_validator` is set for
+                var)
+            allow_shift_validators: bool = True
+                Whether to allow custom shift validators (custom validators for vars via decorator:
+                `@shift_validator(var) -> bool`) - note if this def sets the field, it will be overwritten
+                False: If shift_validator(var) is not `None` throw
+                True: If shift_validator(var) is not `None` call and validate var if it returns True
+            shift_validators_have_precedence: bool = True
+                Whether a shift_validador for a given var has precedence over the default validator (if
+                @shift_validator(field): validate var)
+                False: If shift_validator(var) is not `None` and returns True, validate again using default validator
+                True: If shift_validator(var) is not `None` and returns True, validate var
+            use_shift_validators_first: bool = False
+                Whether to perform built-in validation first or use a shift validator first for a given var
+                (if shift_validators_have_precedence is True, this will be ignored)
+                False: If shift_validator(var) is not `None`, use it after default validation
+                True: If shift_validator(var) is not `None`, use it before default validation
+            allow_shift_setters: bool = True
+                Whether to allow custom shift setters (custom setters for vars via decorator: `@shift_setter(var) -> None`)
+                False: If shift_setter(var) is not `None` throw
+                True: If shift_setter(var) is not `None` call
+            allow_nested_shift_classes: bool = True
+                Whether to allow Shift subclasses during validation
+                False: If any field is a Shift sub class throw
+                True: If any field is a Shift sub class validate var
+
+        repr/to_dict:
+            use_shift_repr: bool = True
+                Whether to do anything if shift_subclass.__repr__ is called
+                False: If shift_subclass.__repr__ is called, return None
+                True: If shift_subclass.__repr__ is called, return shift-generated repr
+            use_shift_serialize: bool = True
+                Whether to do anything if shift_subclass.serialize is called
+                False: If shift_subclass.serialize is called, return None
+                True: If shift_subclass.serialize is called, return shift-generated dict
+            include_defaults: bool = False
+                Whether to include default values in repr/to_dict output
+                False: If field.val == field.default, do not include field in repr/to_dict output
+                True: If field.val == field.default, include field in repr/to_dict output
+            include_private_fields: bool = False
+                Whether to include private fields in repr/to_dict output
+                False: If field.name.startswith('_'), do not include field in repr/to_dict output
+                True: If field.name.startswith('_'), include field in repr/to_dict output
+            allow_shift_repr: bool = True
+                Whether to allow custom shift repr (custom repr for vars via decorator: `@shift_repr(var) -> str`)
+                False: If shift_repr(var) is not `None` throw
+                True: If shift_repr(var) is not `None` call
+            allow_shift_serialize: bool = True
+                Whether to allow custom shift serialize (custom to_dict for vars via decorator:
+                `@shift_to_dict(var) -> dict[str, Any]`)
+                False: If shift_to_dict(var) is not `None` throw
+                True: If shift_to_dict(var) is not `None` call
+
     """
 
     verbosity: int = 0
+    catch_decorator_errors_early: bool = True
+
     do_validation: bool = True
     allow_unmatched_args: bool = False
     allow_any: bool = True
@@ -102,19 +141,28 @@ class ShiftConfig:
     allow_shift_setters: bool = True
     allow_nested_shift_classes: bool = True
 
+    use_shift_repr: bool = True
+    use_shift_serialize: bool = True
+    include_defaults: bool = False
+    include_private_fields: bool = False
+    allow_shift_repr: bool = True
+    allow_shift_serialize: bool = True
 
+
+    def __eq__(self, other: ShiftConfig) -> bool:
+        return isinstance(other, ShiftConfig) and self.serialize() == other.serialize()
 
     def __repr__(self):
         parts = []
         for key, default_val in _shift_config_defaults.items():
             val = getattr(self, key)
             if val != default_val:
-                parts.append(f"{key}={val!r}")
+                parts.append(f"{key}={val}")
 
         args = ", ".join(parts)
         return f"ShiftConfig({args})"
 
-    def to_dict(self) -> dict[str, Any]:
+    def serialize(self) -> dict[str, Any]:
         result = {}
         for key, default_val in _shift_config_defaults.items():
             val = getattr(self, key)
@@ -124,6 +172,13 @@ class ShiftConfig:
 
 DEFAULT_SHIFT_CONFIG = ShiftConfig()
 
+
+
+# Decorators
+########################################################################################################################
+
+
+
 def shift_validator(*fields: str) -> Callable:
     """
     Decorator to mark a function as a validator for one or more fields.
@@ -132,11 +187,13 @@ def shift_validator(*fields: str) -> Callable:
     Usage:
         @shift_validator('age')
         def validate_age(self, data: dict[str, Any], field: str) -> bool:
+            return data['age'] > 0
 
         @shift_validator('age', 'height', 'weight')
         def validate_positive(self, data: dict[str, Any], field: str) -> bool:
+            return data[field] > 0
 
-    Note data is the whole dictionary used to build the shift subclass, and field is the attribute set
+    Note data is the whole dictionary used to build the shift subclass, and field is the attribute being validated
     """
 
     def decorator(func) -> Callable:
@@ -162,6 +219,52 @@ def shift_setter(*fields: str) -> Callable:
 
     def decorator(func) -> Callable:
         func.__setter_for__ = fields
+        return func
+
+    return decorator
+
+def shift_repr(*fields: str) -> Callable:
+    """
+    Decorator to mark a function as a repr for one or more fields.
+    This must return a str in order for the repr to be included.
+
+    Usage:
+        @shift_repr('name')
+        def repr_name(self, field, val, default) -> Union[str, None]:
+            if self.name not default:
+                return f"{self.name}"
+
+        @shift_repr('first_name', 'last_name')
+        def repr_names(self, field, val, default) -> Union[str, None]:
+            if val not default:
+                return f"{val}"
+
+    Note field is the attribute being represented
+    """
+
+    def decorator(func) -> Callable:
+        func.__repr_for__ = fields
+        return func
+
+    return decorator
+
+def has_to_dict(val: Any) -> bool:
+    """Returns whether the val has a callable attribute to_dict"""
+    return val is not None and hasattr(val, 'to_dict') and callable(val.serialize)
+
+def shift_serialize(*fields: str) -> Callable:
+    """
+    Decorator to mark a function as a serializer for one or more fields.
+    This must return a dict[str, Any] in order for the repr to be included.
+
+    Usage:
+
+
+    Note field is the attribute being represented
+    """
+
+    def decorator(func) -> Callable:
+        func.__to_dict_for__ = fields
         return func
 
     return decorator
@@ -201,15 +304,18 @@ def _log_verbose(verbosity: int, msg: list[str]):
 
 
 
-def _set_validators_and_setters(cls: Type) -> None:
+def _set_decorators(cls: Type) -> None:
     # Create new fields in cls
     cls.__validators__ = {}
     cls.__setters__ = {}
+    cls.__reprs__ = {}
+    cls.__serializers__ = {}
 
-    # Fill validators and setters
+    # Fill decorators
     for name, value in cls.__dict__.items():
         # If value is callable test if it has a shift marker
         if callable(value):
+
             # If shift_validator, add to validators for each field
             if hasattr(value, '__validator_for__'):
                 fields = value.__validator_for__
@@ -224,6 +330,18 @@ def _set_validators_and_setters(cls: Type) -> None:
                     cls.__setters__[field] = value
                 continue
 
+            # If shift_repr, add to reprs for each field
+            elif hasattr(value, '__repr_for__'):
+                fields = value.__repr_for__
+                for field in fields:
+                    cls.__reprs__[field] = value
+
+            # If shift_to_dict, add to to_dicts for each field
+            elif hasattr(value, '__to_dict_for__'):
+                fields = value.__to_dict_for__
+                for field in fields:
+                    cls.__serializers__[field] = value
+
 # Note that self is not annotated as Shift because that's undefined here
 def _get_shift_config(self: Any, model_name: str) -> ShiftConfig:
     # Get ShiftConfig (should always be `__shift_config__`) and check the type
@@ -233,8 +351,7 @@ def _get_shift_config(self: Any, model_name: str) -> ShiftConfig:
 
     # If no shift config provided, use global default
     if shift_config:
-        _log_verbose(shift_config.verbosity,
-                     ["", "__shift_config__ set"])
+        _log_verbose(shift_config.verbosity,["", "__shift_config__ set"])
     else:
         shift_config = DEFAULT_SHIFT_CONFIG
 
@@ -562,6 +679,103 @@ def _handle_unmatched_fields(self: Any, shift_config: ShiftConfig, model_name: s
 
 
 
+# repr/to_dict Functions
+########################################################################################################################
+
+
+
+def _get_all_fields_with_values(self: Any) -> dict[str, tuple[Any, Any]]:
+    fields = {}
+
+    # Annotated fields
+    annotations = getattr(self.__class__, "__annotations__", {})
+    for field in annotations.keys():
+        val = getattr(self, field, None)
+        default = self.__fields__.get(field)
+        fields[field] = (val, default)
+
+    # Non-annotated and unmatched fields
+    for field in self.__fields__.keys():
+        if (field not in annotations and not field.startswith("__") and not field.endswith("__") and
+                not callable(getattr(self, field, None))):
+            val = getattr(self, field, None)
+            default = self.__fields__.get(field)
+            fields[field] = (val, default)
+
+    # Remove __shift_config__ from fields
+    fields.pop("__shift_config__", None)
+
+    return fields
+
+def _repr_value(val: Any) -> Union[str, None]:
+    # If val has repr, return it
+    if val is not None and hasattr(val, "__repr__"):
+        return repr(val)
+
+    # Else if val has __str__, return it
+    elif val is not None and hasattr(val, "__str__"):
+        return str(val)
+
+    # Else return None
+    return None
+
+def _repr_field(self: Any, shift_config: ShiftConfig, model_name: str, reprs: dict[str, Callable], field: str,
+                val: Any, default: Any) -> Union[str, None]:
+    # If shift_repr(field) exits and is allowed, use
+    if field in reprs:
+        if not shift_config.allow_shift_repr:
+            raise ValueError(f"{model_name}: a shift_repr decorator is being used for `{field}`, but `shift_config.allow_shift_repr` is `False`")
+        return reprs[field](self, val, default)
+
+    # Else get value repr
+    repr = _repr_value(val)
+    if repr is not None:
+        return f"{field}={repr}"
+
+    # Else if include defaults, get default repr
+    elif shift_config.include_defaults:
+        repr = _repr_value(default)
+        if repr is not None:
+            return f"{field}={repr}"
+
+    # Else return None
+    return None
+
+def _serialize_value(val: Any) -> Union[Any, None]:
+    # If val has to_dict, return it
+    if has_to_dict(val):
+        return val.serialize()
+
+    # Else return val
+    return val
+
+def _serialize_field(self: Any, shift_config: ShiftConfig, model_name: str, serializers: dict[str, Callable],
+                     field: str, val: Any, default: Any) -> Union[Any, None]:
+    # If shift_serialize(field) exits and is allowed, use
+    if field in serializers:
+        if not shift_config.allow_shift_serialize:
+            raise ValueError(f"{model_name}: a shift_to_dict decorator is being used for `{field}`, but `shift_config.allow_shift_to_dict` is `False`")
+        to_dict = serializers[field](self, val, default)
+        if to_dict is not None:
+            return to_dict[field]
+        return None
+
+    # Else get value to_dict
+    to_dict = _serialize_value(val)
+    if to_dict is not None:
+        return to_dict
+
+    # Else if include defaults, get default to_dict
+    elif shift_config.include_defaults:
+        to_dict = _serialize_value(default)
+        if to_dict is not None:
+            return to_dict
+
+    # Else return None
+    return None
+
+
+
 # Shift
 ########################################################################################################################
 
@@ -586,14 +800,20 @@ class Shift:
             A decorator that marks a class def as a setter for `var` - returned values are discarded
         __post_init__(data)
             A def that Shift will call after validation, passing in the constructor dict data
+        __repr__() -> str
+            Returns a string representation of the object inheriting Shift
+        __to_dict__() -> dict[str, Any]
+            Returns a dict representation of the object inheriting Shift
     """
+
+
 
     def __init_subclass__(cls):
         # Get class fields (all vars, annotations, defs, etc)
         cls.__fields__ = getattr(cls, "__dict__", {}).copy()
 
-        # Find all validators and setters
-        _set_validators_and_setters(cls)
+        # Find all decorators
+        _set_decorators(cls)
 
     def __init__(self, **data):
         # Get the class name to print useful log/error messages
@@ -601,6 +821,22 @@ class Shift:
 
         # Get ShiftConfig (should always be `__shift_config__`) and check type
         shift_config = _get_shift_config(self, model_name)
+
+        # Check decorators
+        if shift_config.catch_decorator_errors_early:
+            _log_verbose(shift_config.verbosity, [f"Checking decorators for `{model_name}`"])
+
+            if not shift_config.allow_shift_validators and "__shift_validator__" in self.__fields__ and len(self.__validators__) > 0:
+                raise ValueError(f"`{model_name}`: has shift_validator decorators but `shift_config.allow_shift_validators` is `False`")
+
+            if not shift_config.allow_shift_setters and "__shift_setter__" in self.__fields__ and len(self.__setters__) > 0:
+                raise ValueError(f"`{model_name}`: has shift_setter decorators but `shift_config.allow_shift_setters` is `False`")
+
+            if not shift_config.allow_shift_repr and "__shift_repr__" in self.__fields__ and len(self.__reprs__) > 0:
+                raise ValueError(f"`{model_name}`: has shift_repr decorators but `shift_config.allow_shift_repr` is `False`")
+
+            if not shift_config.allow_shift_serialize and "__shift_to_dict__" in self.__fields__ and len(self.__to_dicts__) > 0:
+                raise ValueError(f"`{model_name}`: has shift_to_dict decorators but `shift_config.allow_shift_to_dict` is `False`")
 
         # If cls has __pre_init__(), call
         if "__pre_init__" in self.__fields__:
@@ -628,3 +864,73 @@ class Shift:
         if "__post_init__" in self.__fields__:
             _log_verbose(shift_config.verbosity, [f"Calling __post_init__ for `{model_name}`"])
             self.__fields__["__post_init__"](self, data)
+
+
+
+    def __repr__(self) -> str:
+        """
+        Returns a string representation of the object inheriting Shift, such that that str representation could be
+        used to rebuild that specific instance.
+
+        Inheriting classes can use this function either by not implementing __repr__ or by calling super().__repr__()
+        """
+
+        # Get inheriting class name and shift config
+        model_name = self.__class__.__name__
+        shift_config = _get_shift_config(self, model_name)
+
+        if not shift_config.use_shift_repr:
+            return ""
+
+        args: list[str] = []
+
+        # Add __shift_config__ if it's not the default value
+        if shift_config != DEFAULT_SHIFT_CONFIG:
+            args.append(f"__shift_config__={repr(shift_config)}")
+
+        # Add all fields
+        for field, (val, default) in _get_all_fields_with_values(self).items():
+            arg = _repr_field(self, shift_config, model_name, self.__reprs__, field, val, default)
+            if arg is not None:
+                args.append(arg)
+
+        # Return string representation of class with args
+        return f"{model_name}({', '.join(args)})"
+
+    def serialize(self) -> dict[str, Any]:
+        """
+        Returns a dict representation of the object inheriting Shift, such that that dict representation could be used
+        to rebuild that specific instance.
+
+        Inheriting classes can use this function either by not implementing to_dict or by calling super().to_dict()
+        """
+
+        # Get inheriting class name and shift config
+        model_name = self.__class__.__name__
+        shift_config = _get_shift_config(self, model_name)
+
+        if not shift_config.use_shift_serialize:
+            return {}
+
+        result: dict[str, Any] = {}
+
+        # Add __shift_config__ if it's not the default value
+        if shift_config != DEFAULT_SHIFT_CONFIG:
+            result["__shift_config__"] = shift_config.serialize()
+
+        # Add all fields
+        for field, (val, default) in _get_all_fields_with_values(self).items():
+            arg = _serialize_field(self, shift_config, model_name, self.__serializers__, field, val, default)
+            if arg is not None:
+                result[field] = arg
+
+        # Return dict representation of class
+        return result
+
+    def __eq__(self, other: Any) -> bool:
+        """Returns whether the other instance has all the same attribute settings as this instance"""
+        return self.serialize() == other.serialize()
+
+    def __copy__(self) -> Any:
+        """Returns a copy of this instance"""
+        return self.__class__(**self.serialize())
