@@ -9,7 +9,7 @@
       <excludeFolder url="file://$MODULE_DIR$/src/starshift.egg-info" />
       <excludeFolder url="file://$MODULE_DIR$/.venvw" />
     </content>
-    <orderEntry type="jdk" jdkName="Python 3.13 (StarShift)" jdkType="Python SDK" />
+    <orderEntry type="jdk" jdkName="Python 3.14 virtualenv at S:\documents\coding_projects\StarShift\.venvw" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
 </module>

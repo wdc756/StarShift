@@ -72,3 +72,5 @@ def test_recursive_nest():
     class A(Shift):
         nest: 'A'
 
+    with pytest.raises(ValueError):
+        a = A(nest=A())

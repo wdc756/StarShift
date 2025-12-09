@@ -1,32 +1,24 @@
-from typing import Any, Optional, Union, List, Dict
+from typing import Any, Optional, Union, List, Dict, get_type_hints
 from starshift import *
 
 DEFAULT_SHIFT_CONFIG.verbosity = 3
 
-def manual_test():
-    class Test(Shift):
-        forward_ref: "ForwardTest"
 
-    class ForwardTest(Shift):
-        ref: int
 
-    test = Test(forward_ref=ForwardTest(ref=10))
-    assert test.forward_ref.ref == 10
+class Test():
+    val: int
+    ref: Optional["Test"]
 
-    test = Test(**{"forward_ref": {"ref": 10}})
-    assert test.forward_ref.ref == 10
+print(Test.__annotations__)
+print(get_type_hints(Test))
 
-    with pytest.raises(TypeError):
-        test = Test(forward_ref="Invalid type")
+def test():
+    class A():
+        test: Optional["Test"]
+        ref: Optional["A"]
 
-    with pytest.raises(TypeError):
-        test = Test(**{"forward_ref": "Invalid type"})
-
-    with pytest.raises(TypeError):
-        test = Test(forward_ref=ForwardTest(ref="Invalid type"))
-
-    with pytest.raises(TypeError):
-        test = Test(**{"forward_ref": {"ref": "Invalid type"}})
+    print(A.__annotations__)
+    print(get_type_hints(A))
 
 if __name__ == '__main__':
-    manual_test()
+    test()
