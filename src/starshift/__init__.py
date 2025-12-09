@@ -1,3 +1,5 @@
+# Errors
+from .star_shift import ShiftError, ShiftConfigError, ShiftValidationError
 # Config
 from .star_shift import ShiftConfig, DEFAULT_SHIFT_CONFIG
 # Decorators

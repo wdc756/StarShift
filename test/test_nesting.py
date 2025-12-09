@@ -1,4 +1,5 @@
 import pytest
+from typing import Optional
 
 import sys
 import os
@@ -20,17 +21,17 @@ def test_single_nest():
     test = B(**{"nest": {"val": 10}})
     assert test.nest == A(val=10)
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = B(nest="Invalid Type")
 
-    with pytest.raises(TypeError):
-        test = B(nest=A(val="Invalid Type"))
-
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = B(**{"nest": "Invalid Type"})
 
-    with pytest.raises(TypeError):
-        test = B(**{"nest": {"nest": "Invalid Type"}})
+    with pytest.raises(ShiftValidationError):
+        test = B(nest=A(val="Invalid Type"))
+
+    with pytest.raises(ShiftValidationError):
+        test = B(**{"nest": {"val": "Invalid Type"}})
 
 def test_double_nest():
     class A(Shift):
@@ -50,27 +51,37 @@ def test_double_nest():
     assert test.nested == B(nest=A(val=10))
     assert test.nested.nest == A(val=10)
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = C(nested="Invalid Type")
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = C(nested=B(nest="Invalid Type"))
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = C(nested=B(nest=A(val="Invalid Type")))
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = C(**{"nested": "Invalid Type"})
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = C(**{"nested": {"nest": "Invalid Type"}})
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = C(**{"nested": {"nest": {"val": "Invalid Type"}}})
 
 def test_recursive_nest():
     class A(Shift):
+        nest: 'A' = None
+
+    a = A(nest=A())
+
+    class A(Shift):
+        nest: Optional['A'] = None
+
+    a = A(nest=A())
+
+    class A(Shift):
         nest: 'A'
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ShiftValidationError):
         a = A(nest=A())

@@ -4,10 +4,11 @@
 
 
 # Used to set up ShiftConfig
-from dataclasses import dataclass, fields
+from dataclasses import dataclass
+from dataclasses import fields as dataclass_fields
 
 # Used to check types in _validate()
-from typing import get_origin, get_args, get_type_hints, Any, Union
+from typing import get_origin, get_args, get_type_hints, Any, Union, ForwardRef
 
 # used for type hints in functions
 from typing import Type, Callable
@@ -18,7 +19,27 @@ import inspect
 
 
 
-# Misc Classes & Decorators
+# Exceptions
+########################################################################################################################
+
+
+
+class ShiftError(Exception):
+    def __init__(self, model_name: str, msg: str):
+        super().__init__(f"StarShift: {model_name}: {msg}")
+
+class ShiftConfigError(Exception):
+    def __init__(self, model_name: str, invalid_config: str, invalid_config_val: Any, msg: str):
+        super().__init__(f"StarShift: {model_name}: Invalid ShiftConfig: `{invalid_config}` was set to "
+                         f"`{invalid_config_val}`, but {msg}")
+
+class ShiftValidationError(Exception):
+    def __init__(self, model_name: str, field: str, msg: str):
+        super().__init__(f"StarShift: {model_name}: Validation failed for field `{field}`: {msg}")
+
+
+
+# Config
 ########################################################################################################################
 
 
@@ -30,18 +51,24 @@ class ShiftConfig:
 
     Attributes:
 
+        Logging:
+            verbosity: int = 0
+            The level of logging to do
+            0: None
+            1: Print class name when done validating
+            2. ^ and validation steps
+            3. ^ and fields and dicts
     """
 
     # Logging
     verbosity: int = 0
 
-    # Controls when things happen
+    # When things happen
     lazy_validate_decorators: bool = False
-    lazy_validate_forward_refs: bool = False
     use_custom_shift_validators_first: bool = True
     custom_shift_validators_bypass_validation: bool = False
 
-    # Controls whether things happen
+    # Whether things happen
     skip_validation: bool = False
     validate_infinite_nesting: bool = True
     use_shift_repr: bool = True
@@ -49,7 +76,7 @@ class ShiftConfig:
     include_defaults_in_serialization: bool = False
     include_private_fields_in_serialization: bool = False
 
-    # Controls what is allowed
+    # What is allowed
     allow_unmatched_args: bool = False
     allow_any: bool = True
     allow_defaults: bool = True
@@ -57,6 +84,7 @@ class ShiftConfig:
     allow_forward_refs: bool = True
     allow_nested_shift_classes: bool = True
 
+    allow_decorators: bool = True
     allow_shift_validators: bool = True
     allow_shift_setters: bool = True
     allow_shift_reprs: bool = True
@@ -66,7 +94,7 @@ class ShiftConfig:
 
     def __repr__(self):
         parts = []
-        for field in fields(self):
+        for field in dataclass_fields(self):
             val = getattr(self, field.name)
             if val != field.default:
                 parts.append(f"{field}={val}")
@@ -76,7 +104,7 @@ class ShiftConfig:
 
     def serialize(self) -> dict[str, Any]:
         result = {}
-        for field in fields(self):
+        for field in dataclass_fields(self):
             val = getattr(self, field.name)
             if val != field.default:
                 result[field] = val
@@ -239,12 +267,29 @@ def _log_verbose(verbosity: int, msg: list[str]):
 
 
 
-# Value Management Functions
+# Init/Setup
 ########################################################################################################################
 
 
 
-def _set_decorators(cls: Type) -> None:
+def _get_shift_config(self: Any, model_name: str) -> ShiftConfig:
+    # Get shift_config from self if it exists
+    shift_config = self.__fields__.get("__shift_config__")
+    if shift_config and not isinstance(shift_config, ShiftConfig):
+        raise ShiftError(model_name, "`__shift_config__` must be a ShiftConfig instance")
+
+    # If no shift config provided, use global default
+    if shift_config:
+        _log_verbose(shift_config.verbosity,["", "__shift_config__ set"])
+    else:
+        shift_config = DEFAULT_SHIFT_CONFIG
+
+    _log_verbose(shift_config.verbosity, ["", "", f"shift_config: {shift_config}"])
+    return shift_config
+
+def _set_decorators(cls: Type, shift_config: ShiftConfig, model_name: str) -> None:
+    _log_verbose(shift_config.verbosity, ["Getting decorators"])
+
     # Create new fields in cls
     cls.__validators__ = {}
     cls.__setters__ = {}
@@ -253,116 +298,200 @@ def _set_decorators(cls: Type) -> None:
 
     # Fill decorators
     for name, value in cls.__dict__.items():
+        _log_verbose(shift_config.verbosity, ["", "", f"Checking `{name}`"])
+
         # If value is callable test if it has a shift marker
         if callable(value):
+            _log_verbose(shift_config.verbosity, ["", "", f"Checking `{name}` for shift decorator"])
 
             # If shift_validator, add to validators for each field
             if hasattr(value, '__validator_for__'):
+                _log_verbose(shift_config.verbosity, ["", "", "found shift_validator, getting fields"])
+
                 fields = value.__validator_for__
                 for field in fields:
+                    _log_verbose(shift_config.verbosity, ["", f"Adding shift validator for `{field}`"])
                     cls.__validators__[field] = value
-                continue
 
             # If shift_setter, add to setters for each field
             elif hasattr(value, '__setter_for__'):
+                _log_verbose(shift_config.verbosity, ["", "", "found shift_setter, getting fields"])
+
                 fields = value.__setter_for__
                 for field in fields:
+                    _log_verbose(shift_config.verbosity, ["", f"Adding shift setter for `{field}`"])
                     cls.__setters__[field] = value
-                continue
 
             # If shift_repr, add to reprs for each field
             elif hasattr(value, '__repr_for__'):
+                _log_verbose(shift_config.verbosity, ["", "", "found shift_repr, getting fields"])
+
                 fields = value.__repr_for__
                 for field in fields:
+                    _log_verbose(shift_config.verbosity, ["", f"Adding shift repr for `{field}`"])
                     cls.__reprs__[field] = value
 
             # If shift_serialize_for, add to __serialize_for__ for each field
             elif hasattr(value, '__serialize_for__'):
+                _log_verbose(shift_config.verbosity, ["", "", "found shift_serialize_for, getting fields"])
+
                 fields = value.__serialize_for__
                 for field in fields:
+                    _log_verbose(shift_config.verbosity, ["", f"Adding shift serializer for `{field}`"])
                     cls.__serializers__[field] = value
 
-# Note that self is not annotated as Shift because that's undefined here
-def _get_shift_config(self: Any, model_name: str) -> ShiftConfig:
-    # Get ShiftConfig (should always be `__shift_config__`) and check the type
-    shift_config = self.__fields__.get("__shift_config__")
-    if shift_config and not isinstance(shift_config, ShiftConfig):
-        raise TypeError(f"`{model_name}`: __shift_config__ must be a ShiftConfig instance")
+    _log_verbose(shift_config.verbosity, ["", "", f"shift_validators: {cls.__validators__}"])
+    _log_verbose(shift_config.verbosity, ["", "", f"shift_setters: {cls.__setters__}"])
+    _log_verbose(shift_config.verbosity, ["", "", f"shift_reprs: {cls.__reprs__}"])
+    _log_verbose(shift_config.verbosity, ["", "", f"shift_serializers: {cls.__serializers__}"])
 
-    # If no shift config provided, use global default
-    if shift_config:
-        _log_verbose(shift_config.verbosity,["", "__shift_config__ set"])
-    else:
-        shift_config = DEFAULT_SHIFT_CONFIG
+    if not shift_config.allow_decorators:
+        if cls.__validators__:
+            raise ShiftConfigError(model_name, "allow_decorators", False,
+                                   "validation decorators are set")
+        if cls.__setters__:
+            raise ShiftConfigError(model_name, "allow_decorators", False,
+                                   "setter decorators are set")
+        if cls.__reprs__:
+            raise ShiftConfigError(model_name, "allow_decorators", False,
+                                   "repr decorators are set")
+        if cls.__serializers__:
+            raise ShiftConfigError(model_name, "allow_decorators", False,
+                                   "serializer decorators are set")
 
-    _log_verbose(shift_config.verbosity, ["", "", "", f"shift_config: {shift_config}"])
-    return shift_config
+    if not shift_config.lazy_validate_decorators:
+        if not shift_config.allow_shift_validators:
+            if cls.__validators__:
+                raise ShiftConfigError(model_name, "allow_shift_validators", False,
+                                       "shift_validators are set")
 
-def _resolve_forward_ref(cls, field) -> Any:
-    # Start with the class's own namespace
-    local_namespace = getattr(cls, "__creation_namespace__", {}).copy()
+        if not shift_config.allow_shift_setters:
+            if cls.__setters__:
+                raise ShiftConfigError(model_name, "allow_shift_setters", False,
+                                       "shift_setters are set")
 
-    # Try to get locals from the calling context by walking up the stack
-    frame = inspect.currentframe()
-    # Walk up the stack to find frames that might contain the forward-referenced class
-    search_frame = frame
-    while search_frame is not None:
-        frame_locals = search_frame.f_locals
-        # Merge locals from each frame in the stack
-        if frame_locals:
-            local_namespace.update(frame_locals)
-        search_frame = search_frame.f_back
+        if not shift_config.allow_shift_reprs:
+            if cls.__reprs__:
+                raise ShiftConfigError(model_name, "allow_shift_reprs", False,
+                                       "shift_reprs are set")
 
-    # Fallback to module globals
-    global_namespace = sys.modules[cls.__module__].__dict__
+        if not shift_config.allow_shift_serializers:
+            if cls.__serializers__:
+                raise ShiftConfigError(model_name, "allow_shift_serializers", False,
+                                       "shift_serializers are set")
 
-    hints = get_type_hints(cls, globalns=global_namespace, localns=local_namespace)
-    return hints[field]
+
+
+# Value Management
+########################################################################################################################
+
+
 
 def _get_val(self: Any, shift_config: ShiftConfig, model_name: str, data: dict[str, Any], field: str) -> Any:
+    _log_verbose(shift_config.verbosity, ["", "", f"Getting val for `{field}`"])
+
     # Get val from data if in data
     if field in data:
         return data[field]
+
     # Else get default (could be None)
     else:
         # If defaults not allowed, throw
         if not shift_config.allow_defaults:
-            raise ValueError(
-                f"{model_name}: `{field}` was not set and there is a default, but `shift_config.allow_defaults` is `False`")
+            raise ShiftConfigError(model_name, "allow_defaults", False,
+                                   f"`{field}` was not defined and has a default")
         return self.__fields__.get(field)
 
-def _is_shift_subclass(shift_config: ShiftConfig, typ: Any) -> bool:
+def _is_shift_subclass(shift_config: ShiftConfig, model_name: str, field: str, typ: Any) -> bool:
     try:
         if isinstance(typ, type) and issubclass(typ, Shift):
             if not shift_config.allow_nested_shift_classes:
-                raise ValueError(
-                    f"`{typ}` is a nested Shift class, but `shift_config.allow_nested_shift_classes` is `False`")
+                raise ShiftConfigError(model_name, "allow_nested_shift_classes", False,
+                                       f"`{field}` is a Shift class")
             return True
     except TypeError:
-        # issubclass raises TypeError for non-classes like Union, List, etc.
+        # issubclass raises TypeError for non-classes like Union, List, etc. but we don't care about those
         return False
     return False
 
+def _resolve_forward_ref(cls, shift_config: ShiftConfig, model_name: str, field: str) -> Any:
+    _log_verbose(shift_config.verbosity, ["", "", f"Resolving forward ref for `{field}`"])
+
+    # Get the module where the class was defined
+    module = sys.modules[cls.__module__]
+    global_namespace = module.__dict__
+
+    # Start with creation namespace
+    local_namespace = getattr(cls, "__creation_ns__", {}).copy()
+
+    # Add frame locals captured at class definition
+    frame_locals = getattr(cls, "__frame_locals__", {})
+    local_namespace.update(frame_locals)
+
+    # CRITICAL: Walk up the stack to find the calling context
+    # This handles cases where classes are defined in functions
+    frame = inspect.currentframe()
+    try:
+        # Walk up the stack looking for the type
+        search_frame = frame
+        while search_frame is not None:
+            frame_locals = search_frame.f_locals
+            if frame_locals:
+                # Check if the forward ref exists in this frame
+                annotation_str = cls.__annotations__.get(field)
+                if isinstance(annotation_str, str) and annotation_str in frame_locals:
+                    local_namespace[annotation_str] = frame_locals[annotation_str]
+                    break
+                # Also add all locals from this frame (might contain the type)
+                local_namespace.update(frame_locals)
+            search_frame = search_frame.f_back
+    finally:
+        del frame
+
+    # Add the class itself
+    local_namespace[cls.__name__] = cls
+
+    try:
+        hints = get_type_hints(cls, globalns=global_namespace, localns=local_namespace)
+        return hints[field]
+    except NameError as e:
+        raise ShiftValidationError(model_name, field, f"has an invalid forward reference: {e}")
+
 def _set_field(self: Any, shift_config: ShiftConfig, model_name: str, data: dict[str, Any],
                setters: dict[str, Callable], field: str, typ: Any, val: Any) -> None:
+    _log_verbose(shift_config.verbosity, ["", "", f"Setting `{field}` to `{val}`"])
+
     # If shift_setter(field), use
     if field in setters:
-        # If shift_setters not allowed, throw
         if not shift_config.allow_shift_setters:
-            raise ValueError(f"`{model_name} has a `@shift_setter({field})` decorator but `shift_config.allow_shift_setters` is `False`")
+            raise ShiftConfigError(model_name, "allow_shift_setters", False,
+                                   f"`{field}` has a `@shift_setter` decorator")
+        _log_verbose(shift_config.verbosity, ["", "", f"Using shift_setter for `{field}`"])
         setters[field](self, data, field)
         return
 
+    # If val is None, just set it (don't try to construct)
+    if val is None:
+        setattr(self, field, None)
+        return
+
     # Else if typ is a shift subclass and val is a dict, set with validation
-    elif _is_shift_subclass(shift_config, typ) and isinstance(val, dict):
+    elif _is_shift_subclass(shift_config, model_name, field, typ) and isinstance(val, dict):
+        _log_verbose(shift_config.verbosity, ["", "", f"Constructing `{field}` as Shift subclass"])
         try:
             setattr(self, field, typ(**val))
-        except Exception as e:
-            raise TypeError(f"`{model_name}`: Failed to construct `{typ.__name__}` for field `{field}`: {e}")
+        except ShiftValidationError as e:
+            raise ShiftValidationError(model_name, field,  f"failed to construct `{typ.__name__}`: {e}")
+        except ShiftError as e:
+            raise ShiftError(model_name, f"failed to construct `{field}`: `{typ.__name__}`: {e}")
         return
 
     # Else set as normal value
-    setattr(self, field, val)
+    try:
+        setattr(self, field, val)
+    except Exception as e:
+        # Throw a ShiftError here because a basic (non-shift) type failed to construct - different from Shift failure
+        raise ShiftError(model_name, f"failed to set `{field}`: {e}")
 
 
 
@@ -370,73 +499,108 @@ def _set_field(self: Any, shift_config: ShiftConfig, model_name: str, data: dict
 ########################################################################################################################
 
 
-def _validate_forward_refs(cls: Type, shift_config: ShiftConfig) -> None:
-    pass
+def _validate_infinite_nesting(cls: Type, shift_config: ShiftConfig, model_name: str) -> None:
+    _log_verbose(shift_config.verbosity, ["", "", "Checking for infinite nesting"])
 
-def _validate_infinite_nesting(cls: Type, shift_config: ShiftConfig) -> None:
-    pass
+    # Build proper namespaces
+    module = sys.modules[cls.__module__]
+    global_namespace = module.__dict__
+    local_namespace = getattr(cls, "__creation_ns__", {}).copy()
 
-def _validate_union_optional(shift_config: ShiftConfig, typ: Any, val: Any) -> bool:
+    frame_locals = getattr(cls, "__frame_locals__", {})
+    local_namespace.update(frame_locals)
+
+    local_namespace[cls.__name__] = cls
+
+    try:
+        annotations = get_type_hints(cls, globalns=global_namespace, localns=local_namespace)
+    except NameError:
+        return
+
+    for field, typ in annotations.items():
+        # Check if field is the same type as the class (not Optional)
+        if typ is cls:
+            # Check if a default value EXISTS (even if it's None)
+            # The key is to check if the field is IN __dict__, not if its value is None
+            has_default = field in cls.__dict__ or hasattr(cls, field)
+
+            if not has_default:
+                raise ShiftValidationError(model_name, field,
+                                           "has infinite nesting (self-reference without default or Optional)")
+
+        # Check if it's a Union containing the class
+        if get_origin(typ) is Union:
+            args = get_args(typ)
+            if cls in args and type(None) not in args:
+                raise ShiftValidationError(model_name, field,
+                                           "has infinite nesting (Union with self but not Optional)")
+
+def _validate_union_optional(shift_config: ShiftConfig, model_name: str, field: str, typ: Any, val: Any) -> bool:
     # If typ not a Union (Optional = Union[type, None]), invalidate
     if not get_origin(typ) is Union:
         return False
 
     # If val is any arg(assume arg is not empty), validate
     args = get_args(typ)
+    _log_verbose(shift_config.verbosity, ["", "", f"`{field}` is a Union, validating against union args: {args}"])
     for arg in args:
-        if _validate_value(shift_config, arg, val):
+        if _validate_value(shift_config, model_name, field, arg, val):
             return True
 
     # val is any typ, validate
     return False
 
-def _validate_list_set_tuple(shift_config: ShiftConfig, typ: Any, var: Any) -> bool:
+def _validate_list_set_tuple(shift_config: ShiftConfig, model_name: str, field: str, typ: Any, var: Any) -> bool:
     # If typ or var are not a list or set, return false
     origin = get_origin(typ)
     if not (origin is list or origin is set or origin is tuple
             or isinstance(var, list) or isinstance(var, set) or isinstance(var, tuple)):
         return False
 
+    _log_verbose(shift_config.verbosity, ["", "", f"`{var}` is a list, set, or tuple"])
+
     # If typ is un-annotated or var is empty, validate
     args = get_args(typ)
+    _log_verbose(shift_config.verbosity, ["", "", f"args: {args}"])
     if not args or not var:
         return True
 
     # If len(args) == len(var), iterate over both
     if len(args) == len(var):
         for item, arg in zip(var, args):
-            if not _validate_value(shift_config, arg, item):
+            if not _validate_value(shift_config, model_name, field, arg, item):
                 return False
 
     # Else iterate over var comparing to arg[0]
     else:
         # If any item in var is not an arg, return false
         for item in var:
-            if not _validate_value(shift_config, args[0], item):
+            if not _validate_value(shift_config, model_name, field, args[0], item):
                 return False
 
     # All item in var are valid typ, validate
     return True
 
-def _validate_dict(shift_config: ShiftConfig, typ: Any, dct: Any) -> bool:
+def _validate_dict(shift_config: ShiftConfig, model_name: str, field: str, typ: Any, dct: Any) -> bool:
     # If typ or dct are not a dict, invalidate
     if not get_origin(typ) is dict or not isinstance(dct, dict):
         return False
 
     # If typ is un-annotated or dct is empty, validate
     args = get_args(typ)
+    _log_verbose(shift_config.verbosity, ["", "", f"`{field}` is a dict, validating against dict args: {args}"])
     if not args or not dct:
         return True
 
     # If any key is not arg[0], invalidate
     for key in dct.keys():
-        if not _validate_value(shift_config, args[0], key):
+        if not _validate_value(shift_config, model_name, field, args[0], key):
             return False
 
     # If args[1] is defined and any val in dct.values is not instance, invalidate
     if len(args) > 1:
         for key in dct.keys():
-            if not _validate_value(shift_config, args[1], dct.get(key)):
+            if not _validate_value(shift_config, model_name, field, args[1], dct.get(key)):
                 return False
 
     # All key-val in dct match typ, validate
@@ -446,32 +610,34 @@ def _validate_shift_validator(self: Any, shift_config: ShiftConfig, model_name: 
                               validators: dict[str, Any], field: str) -> bool:
     # If shift_validators not allowed, throw
     if not shift_config.allow_shift_validators:
-        raise ValueError(f"`{model_name}`: a shift_validator decorator is being used for `{field}`, but `shift_config.allow_shift_validators` is `False`")
+        raise ShiftConfigError(model_name, "allow_shift_validators", False,
+                               f"`{field}` has a shift_validator decorator")
 
     # If invalid, throw
     if not validators[field](self, data, field):
-        raise ValueError(f"`{model_name}`: `shift_validator({field})` validation failed (did not return True)")
+        raise ShiftValidationError(model_name, field, f"`custom shift_validator returned `False`")
 
     # Validate
     return True
 
-def _validate_value(shift_config: ShiftConfig, typ: Any, val: Any) -> bool:
+def _validate_value(shift_config: ShiftConfig, model_name: str, field: str, typ: Any, val: Any) -> bool:
     _log_verbose(shift_config.verbosity, ["", "", f"Attempting `{val}` validation against `{typ}`"])
 
     # If complex type validates, return validation
     if typ is Any:
         if not shift_config.allow_any:
-            raise ValueError(f"Type is `Any` but shift_config.allow_any is `False`")
+            raise ShiftConfigError(model_name, "allow_any", False,
+                                   f"`{field}` is `Any`")
         return True
-    elif _validate_union_optional(shift_config, typ, val):
+    elif _validate_union_optional(shift_config, model_name, field, typ, val):
         return True
-    elif _validate_list_set_tuple(shift_config, typ, val):
+    elif _validate_list_set_tuple(shift_config, model_name, field, typ, val):
         return True
-    elif _validate_dict(shift_config, typ, val):
+    elif _validate_dict(shift_config, model_name, field, typ, val):
         return True
 
     # If shift subclass, it can validate itself, so validate on this level
-    elif _is_shift_subclass(shift_config, typ):
+    elif _is_shift_subclass(shift_config, model_name, field, typ):
         # If already a type, validate
         if isinstance(val, typ):
             return True
@@ -481,12 +647,16 @@ def _validate_value(shift_config: ShiftConfig, typ: Any, val: Any) -> bool:
         # Otherwise invalid
         return False
 
+    # If string or forward ref, validate later
+    elif isinstance(typ, str) or isinstance(typ, ForwardRef):
+        return True
+
     # If no complex type validated but simple validation works, validate
     # Use try block here to gracefully handle invalid types
     try:
         if isinstance(val, typ):
             return True
-    except TypeError:
+    except Exception as _:
         pass
 
     # If no type validated, invalidate
@@ -498,23 +668,25 @@ def _validate_field(self: Any, shift_config: ShiftConfig, model_name: str, data:
 
     # If shift_validator(field), handle
     if field in validators:
-        # If use shift_validators before or they have precedence, use
+        _log_verbose(shift_config.verbosity, ["", "", f"`{field}` has a shift_validator decorator"])
+
+        # If use shift_validators first or they bypass validation, run first
         if shift_config.use_custom_shift_validators_first or shift_config.custom_shift_validators_bypass_validation:
             # If shift_validator failed, return false
             if not _validate_shift_validator(self, shift_config, model_name, data, validators, field):
                 return False
 
-            # If shift_validators have precedence, validate
+            # If shift_validators bypass, validate
             if shift_config.custom_shift_validators_bypass_validation:
                 return True
 
             # Else validate normally too
-            return _validate_value(shift_config, typ, data)
+            return _validate_value(shift_config, model_name, field, typ, data)
 
         # Else use default validator then shift_validator
         else:
             # If normal validation failed, return false
-            if not _validate_value(shift_config, typ, data):
+            if not _validate_value(shift_config, model_name, field, typ, data):
                 return False
 
             # Then use shift_validator
@@ -524,17 +696,18 @@ def _validate_field(self: Any, shift_config: ShiftConfig, model_name: str, data:
             # Validate
             return True
 
-    # If typ is a string, assume it's a forward ref that will be resolved later
-    if isinstance(typ, str):
+    # If typ is a string or forward ref, assume it's a forward ref that will be resolved later
+    if isinstance(typ, str) or isinstance(typ, ForwardRef):
+        _log_verbose(shift_config.verbosity, ["", "", f"`{field}` is a str or forward ref, validating later"])
         return True
 
     # Else use default validator
-    return _validate_value(shift_config, typ, val)
+    return _validate_value(shift_config, model_name, field, typ, val)
 
 def _validate_annotated(self: Any, shift_config: ShiftConfig, model_name: str, data: dict[str, Any],
                         annotations: dict[str, Any], validators: dict[str, Callable],
                         setters: dict[str, Callable]) -> None:
-    _log_verbose(shift_config.verbosity, ["Validating fields"])
+    _log_verbose(shift_config.verbosity, ["", "Validating fields"])
 
     for field, typ in annotations.items():
         # Get val
@@ -544,20 +717,28 @@ def _validate_annotated(self: Any, shift_config: ShiftConfig, model_name: str, d
         if _validate_field(self, shift_config, model_name, data, validators, field, typ, val):
             _log_verbose(shift_config.verbosity, ["", "", f"Validated field `{field}`, setting"])
 
-            # If typ is a string, try to resolve it
-            if isinstance(typ, str):
+            # If typ is a string or forward ref, try to resolve typ
+            if isinstance(typ, str) or isinstance(typ, ForwardRef):
                 if not shift_config.allow_forward_refs:
-                    raise ValueError(f"Type is a str forward ref, but `shift_config.allow_forward_refs` is `False`")
+                    raise ShiftConfigError(model_name, "allow_forward_refs", False,
+                                           f"`{field}` is a str forward ref")
+
                 try:
                     # Resolve typ
-                    typ = _resolve_forward_ref(self.__class__, field)
+                    typ = _resolve_forward_ref(self.__class__, shift_config, model_name, field)
 
-                    # Validate typ
+                    # Validate val against resolved typ
                     if _validate_field(self, shift_config, model_name, data, validators, field, typ, val):
                         _set_field(self, shift_config, model_name, data, setters, field, typ, val)
                         continue
+
+                    # If validation failed with val but default exists and is allowed, set with that
+                    MISSING = object() # Because this needs to handle default=None, we need a different object
+                    if shift_config.allow_defaults and self.__fields__.get(field, MISSING) is not MISSING:
+                            continue
                 except Exception as e:
-                    raise TypeError(f"`{model_name}`: `{field}`'s forward ref could not be resolved") from e
+                    raise ShiftValidationError(model_name, field,
+                                               f"forward ref could not be resolved: {e}")
 
             # Else set field normally
             else:
@@ -565,18 +746,16 @@ def _validate_annotated(self: Any, shift_config: ShiftConfig, model_name: str, d
                 continue
 
         # Else assume invalid (catch all throw)
-        raise TypeError(f"`{model_name}`: `{field}` has invalid type")
+        raise ShiftValidationError(model_name, field, f"failed validation against `{typ}`")
 
 def _validate_un_annotated(self: Any, shift_config: ShiftConfig, model_name: str, data: dict[str, Any],
                            annotations: dict[str, Any], validators: dict[str, Callable],
                            setters: dict[str, Callable]) -> None:
-    _log_verbose(shift_config.verbosity, ["Setting un-annotated fields"])
+    _log_verbose(shift_config.verbosity, ["", "Setting non-annotated fields"])
 
     # Get all fields
     fields = {}
     for field in self.__fields__:
-        if shift_config.verbosity > 2:
-            print(f"Attempting to add `{field}` to un-annotated fields")
 
         # Filter all magic fields (__ex__) out
         if field not in annotations and not field.startswith("__") and not field.endswith("__"):
@@ -584,21 +763,21 @@ def _validate_un_annotated(self: Any, shift_config: ShiftConfig, model_name: str
             # Filter out all callables (def/function)
             attr = self.__fields__.get(field)
             if not callable(attr):
-                if shift_config.verbosity > 2:
-                    print(f"Adding `{field}` to un-annotated fields")
                 fields[field] = attr
+
     _log_verbose(shift_config.verbosity, ["", "", f"non-annotated fields: {fields}"])
 
     # Check if non-annotated fields allowed
     if fields and len(fields) > 0 and not shift_config.allow_non_annotated:
-        raise TypeError(f"`{model_name}` has non-annotated fields when `shift_config.allow_non_annotated` is `False`")
+        raise ShiftConfigError(model_name, "allow_non_annotated", False,
+                               f"non-annotated fields found")
 
     # Set each field (assume user/interpreter validation)
     for field in fields.keys():
         # If shift_validator for field, validate against that first
-        if field in validators and not _validate_shift_validator(self, shift_config, model_name, data, validators, field):
-            raise ValueError(f"`{model_name}`: `{field}` shift_validator failed")
-
+        if field in validators and not _validate_shift_validator(self, shift_config, model_name, data, validators,
+                                                                 field):
+            raise ShiftValidationError(model_name, field, f"custom shift_validator returned `False`")
 
         # Get val
         val = _get_val(self, shift_config, model_name, data, field)
@@ -609,7 +788,7 @@ def _validate_un_annotated(self: Any, shift_config: ShiftConfig, model_name: str
 
 def _validate(self: Any, shift_config: ShiftConfig, model_name: str, data: dict[str, Any],
               validators: dict[str, Callable], setters: dict[str, Callable]) -> None:
-    _log_verbose(shift_config.verbosity, [f"Validating class `{model_name}`"])
+    _log_verbose(shift_config.verbosity, ["", f"Validating class `{model_name}`"])
 
     # Get annotation vars (dict[field, typ])
     annotations = getattr(self.__class__, "__annotations__", {})
@@ -622,7 +801,7 @@ def _validate(self: Any, shift_config: ShiftConfig, model_name: str, data: dict[
     _log_verbose(shift_config.verbosity, [f"Validated class `{model_name}`"])
 
 def _handle_unmatched_fields(self: Any, shift_config: ShiftConfig, model_name: str, data: dict[str, Any],
-                             setters: dict[str, Callable]):
+                             validators: dict[str, Callable], setters: dict[str, Callable]):
     _log_verbose(shift_config.verbosity, ["", "Checking for unmatched fields"])
 
     # Get all keys in data that aren't in fields
@@ -637,13 +816,23 @@ def _handle_unmatched_fields(self: Any, shift_config: ShiftConfig, model_name: s
     # If any unmatched fields left, they're unmatched
     if len(args) > 0:
         if not shift_config.allow_unmatched_args:
-            raise ValueError(
-                f"`{model_name}` has unmatched args fields but `shift_config.allow_unmatched_args` is `False`")
-        _log_verbose(shift_config.verbosity, ["", "unmatched keys found, setting", f"Unmatched keys: {args}"])
+            raise ShiftConfigError(model_name, "allow_unmatched_args", False,
+                                   f"unmatched keys found")
+        _log_verbose(shift_config.verbosity, ["", "unmatched keys found, setting", f"Setting unmatched keys: {args}"])
 
         # For arg add new attr and set
         for arg in args:
-            _log_verbose(shift_config.verbosity, ["", "", f"set {arg}"])
+            # If shift_validator for field, validate against that first
+            if arg in validators:
+                _log_verbose(shift_config.verbosity, ["", "", f"`{arg}` has a shift_validator decorator"])
+
+                if not shift_config.allow_shift_validators:
+                    raise ShiftConfigError(model_name, "allow_shift_validators", False,
+                                           f"`{arg}` has a shift_validator decorator")
+
+                if not _validate_shift_validator(self, shift_config, model_name, data, validators, arg):
+                    raise ShiftValidationError(model_name, arg, f" custom shift_validator returned `False`")
+
             _set_field(self, shift_config, model_name, data, setters, arg, None, data[arg])
 
 
@@ -685,7 +874,9 @@ def _repr_field(self: Any, shift_config: ShiftConfig, model_name: str, reprs: di
     # If field in reprs and reprs allowed, use
     if field in reprs:
         if not shift_config.allow_shift_reprs:
-            raise ValueError(f"`{model_name}`: a shift_repr decorator is being used for `{field}`, but `shift_config.allow_shift_repr` is `False`")
+            raise ShiftConfigError(model_name, "allow_shift_reprs", False,
+                                   "shift repr was called")
+
         return reprs[field](self, field, val, default)
 
     # if val is default and not include defaults, return None
@@ -697,6 +888,7 @@ def _repr_field(self: Any, shift_config: ShiftConfig, model_name: str, reprs: di
         # If val equals default, only include if set to
         if not shift_config.include_defaults_in_serialization and val == default:
             return None
+
         return repr(val)
 
     # Else return val
@@ -735,7 +927,9 @@ def _serialize_field(self: Any, shift_config: ShiftConfig, model_name: str, seri
     # If field in serializers and serializers allowed, use
     if field in serializers:
         if not shift_config.allow_shift_serializers:
-            raise ValueError(f"`{model_name}`: a shift_serialize decorator is being used for `{field}`, but `shift_config.allow_shift_serialize` is `False`")
+            raise ShiftConfigError(model_name, "allow_shift_serializers", False,
+                                   "shift serializer was called")
+
         return serializers[field](self, field, val, default)
 
     # Elif val is default and not include defaults, return None
@@ -759,10 +953,32 @@ class ShiftMeta(type):
         # Call normal class __new__ and save
         cls = super().__new__(mcls, name, bases, namespace)
 
-        # Get class local namespace
-        cls.__creation_ns__ = namespace
+        # Get class local namespace (class body)
+        cls.__creation_ns__ = namespace.copy()
 
-        # Return the constructed class
+        # Capture frame locals - we need to go back TWO frames
+        # Frame 0: __new__ (this function)
+        # Frame 1: type.__call__ (Python's class creation)
+        # Frame 2: Where the class is actually defined (what we want!)
+        frame = inspect.currentframe()
+        try:
+            if frame is not None:
+                # Go back two frames to get the actual definition location
+                caller_frame = frame.f_back
+                if caller_frame is not None:
+                    caller_frame = caller_frame.f_back
+                    if caller_frame is not None:
+                        cls.__frame_locals__ = caller_frame.f_locals.copy()
+                    else:
+                        cls.__frame_locals__ = {}
+                else:
+                    cls.__frame_locals__ = {}
+            else:
+                cls.__frame_locals__ = {}
+        finally:
+            # Clean up frame reference to avoid reference cycles
+            del frame
+
         return cls
 
 class Shift(metaclass=ShiftMeta):
@@ -796,37 +1012,15 @@ class Shift(metaclass=ShiftMeta):
         # Get class fields (all vars, annotations, defs, etc)
         cls.__fields__ = getattr(cls, "__dict__", {}).copy()
 
-        # Find all decorators
-        _set_decorators(cls)
-
     def __init__(self, **data):
         # Get the class name to print useful log/error messages
         model_name = self.__class__.__name__
 
-        # Get ShiftConfig (should always be `__shift_config__`) and check type
+        # Get ShiftConfig (should always be `__shift_config__`)
         shift_config = _get_shift_config(self, model_name)
 
-        # Check for recursive nesting and forward refs
-        if shift_config.lazy_validate_forward_refs:
-            _validate_forward_refs(self.__class__, shift_config)
-        if shift_config.validate_infinite_nesting:
-            _validate_infinite_nesting(self.__class__, shift_config)
-
-        # Check decorators
-        if shift_config.lazy_validate_decorators:
-            _log_verbose(shift_config.verbosity, [f"Checking decorators for `{model_name}`"])
-
-            if not shift_config.allow_shift_validators and "__shift_validator__" in self.__fields__ and len(self.__validators__) > 0:
-                raise ValueError(f"`{model_name}`: has shift_validator decorators but `shift_config.allow_shift_validators` is `False`")
-
-            if not shift_config.allow_shift_setters and "__shift_setter__" in self.__fields__ and len(self.__setters__) > 0:
-                raise ValueError(f"`{model_name}`: has shift_setter decorators but `shift_config.allow_shift_setters` is `False`")
-
-            if not shift_config.allow_shift_reprs and "__shift_repr__" in self.__fields__ and len(self.__reprs__) > 0:
-                raise ValueError(f"`{model_name}`: has shift_repr decorators but `shift_config.allow_shift_repr` is `False`")
-
-            if not shift_config.allow_shift_serializers and "__shift_serializers__" in self.__fields__ and len(self.__to_dicts__) > 0:
-                raise ValueError(f"`{model_name}`: has shift_to_dict decorators but `shift_config.allow_shift_to_dict` is `False`")
+        # Get decorators
+        _set_decorators(self.__class__, shift_config, model_name)
 
         # If cls has __pre_init__(), call
         if "__pre_init__" in self.__fields__:
@@ -834,7 +1028,12 @@ class Shift(metaclass=ShiftMeta):
             self.__fields__["__pre_init__"](self, data)
 
         # Only run validation steps if configured to
-        if shift_config.skip_validation:
+        if not shift_config.skip_validation:
+
+            # Validate infinite nesting if configured to
+            if shift_config.validate_infinite_nesting:
+                _validate_infinite_nesting(self.__class__, shift_config, model_name)
+
             # Get validators and setters
             validators = self.__validators__
             _log_verbose(shift_config.verbosity, ["", "", f"validators: {validators}"])
@@ -848,7 +1047,7 @@ class Shift(metaclass=ShiftMeta):
             _validate(self, shift_config, model_name, data, validators, setters)
 
             # Handle unmatched fields
-            _handle_unmatched_fields(self, shift_config, model_name, data, setters)
+            _handle_unmatched_fields(self, shift_config, model_name, data, validators, setters)
 
         # If cls has __post_init__(), call
         if "__post_init__" in self.__fields__:

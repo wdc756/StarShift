@@ -12,10 +12,10 @@ def test_none():
     class Test(Shift):
         none: None
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = Test(none=None)
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = Test(**{"none": None})
 
 def test_bool():
@@ -28,10 +28,10 @@ def test_bool():
     test = Test(**{"boolean": True})
     assert test.boolean is True
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = Test(boolean="Invalid type")
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = Test(**{"boolean": "Invalid type"})
 
 def test_int():
@@ -44,10 +44,10 @@ def test_int():
     test = Test(**{"integer": 10})
     assert test.integer == 10
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = Test(integer="Invalid type")
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = Test(**{"integer": "Invalid type"})
 
 def test_float():
@@ -60,10 +60,10 @@ def test_float():
     test = Test(**{"flt": 3.14})
     assert test.flt == 3.14
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = Test(flt="Invalid type")
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = Test(**{"flt": "Invalid type"})
 
 def test_str():
@@ -76,10 +76,10 @@ def test_str():
     test = Test(**{"string": "hello"})
     assert test.string == "hello"
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = Test(string=False)
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = Test(**{"string": False})
 
 def test_list():
@@ -92,19 +92,19 @@ def test_list():
     test = Test(**{"lst": [1, 2, 3]})
     assert test.lst == [1, 2, 3]
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = Test(lst="Invalid type")
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = Test(**{"lst": "Invalid type"})
 
     class Test(Shift):
         lst: list[int]
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = Test(lst=[1, 2, "Invalid type"])
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = Test(**{"lst": [1, 2, "Invalid type"]})
 
 def test_tuple():
@@ -117,19 +117,19 @@ def test_tuple():
     test = Test(**{"tup": ("hello", 10)})
     assert test.tup == ("hello", 10)
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = Test(tup="Invalid type")
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = Test(**{"tup": "Invalid type"})
 
     class Test(Shift):
         tup: tuple[str, int]
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = Test(tup=("hello", "Invalid type"))
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = Test(**{"tup": ["hello", "Invalid type"]})
 
 def test_set():
@@ -142,19 +142,19 @@ def test_set():
     test = Test(**{"st": {1, 2, 3}})
     assert test.st == {1, 2, 3}
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = Test(st="Invalid type")
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = Test(**{"st": "Invalid type"})
 
     class Test(Shift):
         st: set[int]
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = Test(st={1, 2, "Invalid type"})
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = Test(**{"st": [1, 2, "Invalid type"]})
 
 def test_frozenset():
@@ -167,19 +167,19 @@ def test_frozenset():
     test = Test(**{"fset": {1, 2, 3}})
     assert test.fset == {1, 2, 3}
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = Test(fset="Invalid type")
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = Test(**{"fset": "Invalid type"})
 
     class Test(Shift):
         fset: frozenset[int]
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = Test(fset=frozenset([1, 2, "Invalid type"]))
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = Test(**{"fset": {1, 2, "Invalid type"}})
 
 def test_dict():
@@ -192,19 +192,19 @@ def test_dict():
     test = Test(**{"dct": {"Hello": 10}})
     assert test.dct["Hello"] == 10
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = Test(dct="Invalid type")
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = Test(**{"dct": "Invalid type"})
 
     class Test(Shift):
         dct: dict[str, int]
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = Test(dct={"Hello": "Invalid type"})
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = Test(**{"dct": {"Hello": "Invalid type"}})
 
 def test_bytes():
@@ -217,10 +217,10 @@ def test_bytes():
     test = Test(**{"bts": b"Hello"})
     assert test.bts == b"Hello"
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = Test(bts="Invalid type")
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = Test(**{"bts": "Invalid type"})
 
 def test_bytearray():
@@ -265,10 +265,10 @@ def test_Union():
     test = Test(**{"union": "Hello"})
     assert test.union == "Hello"
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = Test(union=3.14)
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = Test(**{"union": 3.14})
 
 def test_optional():
@@ -287,10 +287,10 @@ def test_optional():
     test = Test(**{"optional": True})
     assert test.optional is True
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = Test(optional="Invalid type")
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = Test(**{"optional": "Invalid type"})
 
 def test_forward_ref():
@@ -306,14 +306,14 @@ def test_forward_ref():
     test = Test(**{"forward_ref": {"ref": 10}})
     assert test.forward_ref.ref == 10
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = Test(forward_ref="Invalid type")
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = Test(**{"forward_ref": "Invalid type"})
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = Test(forward_ref=ForwardTest(ref="Invalid type"))
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ShiftValidationError):
         test = Test(**{"forward_ref": {"ref": "Invalid type"}})

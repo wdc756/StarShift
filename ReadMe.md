@@ -18,6 +18,12 @@ pip install starshift
 ```
 
 
+### Other personal notes (to be removed):
+
+- All validation errors result in `ShiftValidationError`
+- All configuration errors result in `ShiftConfigError`
+
+
 ---
 
 
