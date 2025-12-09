@@ -18,10 +18,9 @@ pip install starshift
 ```
 
 
-### Other personal notes (to be removed):
+# Under development
 
-- All validation errors result in `ShiftValidationError`
-- All configuration errors result in `ShiftConfigError`
+## This library is nearly complete, but is still early access with bugs
 
 
 ---
