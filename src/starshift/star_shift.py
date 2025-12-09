@@ -50,14 +50,32 @@ class ShiftConfig:
     This dataclass holds all the configuration options for a Shift class
 
     Attributes:
+        verbosity (int): Level of logging Default: 0
 
-        Logging:
-            verbosity: int = 0
-            The level of logging to do
-            0: None
-            1: Print class name when done validating
-            2. ^ and validation steps
-            3. ^ and fields and dicts
+        lazy_validate_decorators (bool): Validate decorators after __pre_init__; Default: False
+        use_custom_shift_validators_first (bool): Use @shift_validators before builtin validation; Default: False
+        custom_shift_validators_bypass_validation (bool): If @shift_validator(), skip builtin validation; Default: False
+
+        skip_validation (bool): Skip all validation and set steps; Default: False
+        validate_infinite_nesting (bool): Check for infinite nesting; Default: True
+        use_builtin_shift_repr (bool): Use the builtin Shift __repr__; Default: True
+        use_builtin_shift_serializer (bool): Use the builtin Shift serializer; Default: True
+        include_shift_config_in_serialization (bool): Include shift config in serialization; Default: False
+        include_defaults_in_serialization (bool): Include all annotated keys in serialization; Default: False
+        include_private_fields_in_serialization (bool): Include all `_` private fields in serialization; Default: False
+
+        allow_unmatched_args (bool): Allow args that don't match any attributes; Default: False
+        allow_any (bool): Allow type hint to be Any; Default: True
+        allow_defaults (bool): Allow default values; Default: True
+        allow_non_annotated (bool): Allow non-annotated values; Default: False
+        allow_forward_refs (bool): Allow forward refs; Default: True
+        allow_nested_shift_classes (bool): Allow shift classes inside Shift class; Default: True
+
+        allow_decorators (bool): Allow any @shift_* decorators; Default: True
+        allow_shift_validators (bool): Allow @shift_validator decorators; Default: True
+        allow_shift_setters (bool): Allow @shift_setter decorators; Default: True
+        allow_shift_reprs (bool): Allow @shift_repr decorators; Default: True
+        allow_shift_serializers (bool): Allow @shift_serializer decorators; Default: True
     """
 
     # Logging
@@ -65,14 +83,15 @@ class ShiftConfig:
 
     # When things happen
     lazy_validate_decorators: bool = False
-    use_custom_shift_validators_first: bool = True
+    use_custom_shift_validators_first: bool = False
     custom_shift_validators_bypass_validation: bool = False
 
     # Whether things happen
     skip_validation: bool = False
     validate_infinite_nesting: bool = True
-    use_shift_repr: bool = True
-    use_shift_serializer: bool = True
+    use_builtin_shift_repr: bool = True
+    use_builtin_shift_serializer: bool = True
+    include_shift_config_in_serialization: bool = False
     include_defaults_in_serialization: bool = False
     include_private_fields_in_serialization: bool = False
 
@@ -80,7 +99,7 @@ class ShiftConfig:
     allow_unmatched_args: bool = False
     allow_any: bool = True
     allow_defaults: bool = True
-    allow_non_annotated: bool = True
+    allow_non_annotated: bool = False
     allow_forward_refs: bool = True
     allow_nested_shift_classes: bool = True
 
@@ -345,41 +364,6 @@ def _set_decorators(cls: Type, shift_config: ShiftConfig, model_name: str) -> No
     _log_verbose(shift_config.verbosity, ["", "", f"shift_reprs: {cls.__reprs__}"])
     _log_verbose(shift_config.verbosity, ["", "", f"shift_serializers: {cls.__serializers__}"])
 
-    if not shift_config.allow_decorators:
-        if cls.__validators__:
-            raise ShiftConfigError(model_name, "allow_decorators", False,
-                                   "validation decorators are set")
-        if cls.__setters__:
-            raise ShiftConfigError(model_name, "allow_decorators", False,
-                                   "setter decorators are set")
-        if cls.__reprs__:
-            raise ShiftConfigError(model_name, "allow_decorators", False,
-                                   "repr decorators are set")
-        if cls.__serializers__:
-            raise ShiftConfigError(model_name, "allow_decorators", False,
-                                   "serializer decorators are set")
-
-    if not shift_config.lazy_validate_decorators:
-        if not shift_config.allow_shift_validators:
-            if cls.__validators__:
-                raise ShiftConfigError(model_name, "allow_shift_validators", False,
-                                       "shift_validators are set")
-
-        if not shift_config.allow_shift_setters:
-            if cls.__setters__:
-                raise ShiftConfigError(model_name, "allow_shift_setters", False,
-                                       "shift_setters are set")
-
-        if not shift_config.allow_shift_reprs:
-            if cls.__reprs__:
-                raise ShiftConfigError(model_name, "allow_shift_reprs", False,
-                                       "shift_reprs are set")
-
-        if not shift_config.allow_shift_serializers:
-            if cls.__serializers__:
-                raise ShiftConfigError(model_name, "allow_shift_serializers", False,
-                                       "shift_serializers are set")
-
 
 
 # Value Management
@@ -499,6 +483,42 @@ def _set_field(self: Any, shift_config: ShiftConfig, model_name: str, data: dict
 ########################################################################################################################
 
 
+def _validate_decorators(shift_config: ShiftConfig, model_name: str,
+                         validators: dict[str, Callable], setters: dict[str, Callable],
+                         reprs: dict[str, Callable], serializers: dict[str, Callable]) -> None:
+    # Validate all decorators
+    if not shift_config.allow_decorators:
+        if validators:
+            raise ShiftConfigError(model_name, "allow_decorators", False,
+                                   "validation decorators are set")
+        if setters:
+            raise ShiftConfigError(model_name, "allow_decorators", False,
+                                   "setter decorators are set")
+        if reprs:
+            raise ShiftConfigError(model_name, "allow_decorators", False,
+                                   "repr decorators are set")
+        if serializers:
+            raise ShiftConfigError(model_name, "allow_decorators", False,
+                                   "serializer decorators are set")
+
+    # Validate individual decorators
+    if not shift_config.allow_shift_validators:
+        if validators:
+            raise ShiftConfigError(model_name, "allow_shift_validators", False,
+                                   "shift_validators are set")
+    if not shift_config.allow_shift_setters:
+        if setters:
+            raise ShiftConfigError(model_name, "allow_shift_setters", False,
+                                   "shift_setters are set")
+    if not shift_config.allow_shift_reprs:
+        if reprs:
+            raise ShiftConfigError(model_name, "allow_shift_reprs", False,
+                                   "shift_reprs are set")
+    if not shift_config.allow_shift_serializers:
+        if serializers:
+            raise ShiftConfigError(model_name, "allow_shift_serializers", False,
+                                   "shift_serializers are set")
+
 def _validate_infinite_nesting(cls: Type, shift_config: ShiftConfig, model_name: str) -> None:
     _log_verbose(shift_config.verbosity, ["", "", "Checking for infinite nesting"])
 
@@ -606,6 +626,34 @@ def _validate_dict(shift_config: ShiftConfig, model_name: str, field: str, typ: 
     # All key-val in dct match typ, validate
     return True
 
+def _validate_callable(shift_config: ShiftConfig, model_name: str, field: str, typ: Any, func: Any) -> bool:
+    # If not callable, invalidate
+    if not (get_origin(typ) is Callable or callable(func)):
+        return False
+
+    # If typ is unannotated or func is empty, validate
+    args = get_args(typ)
+    _log_verbose(shift_config.verbosity, ["", "", f"`{field}` is a callable, validating against callable args: {args}"])
+    if not args or not func:
+        return True
+
+    # Make sure args are formatted correctly
+    if len(args) != 2 or not isinstance(args[0], list) or isinstance(args[1], list):
+        raise ShiftError(model_name, f"`{field}`: callable type has invalid argument annotations - "
+                                     f"should be Callable[[pass_args], return_arg], but Shift got: {args}")
+
+    # Validate passing types
+    for arg in args[0]:
+        if not _validate_value(shift_config, model_name, field, arg, typ):
+            return False
+
+    # Validate returning type
+    if not _validate_value(shift_config, model_name, field, args[1], func):
+        return False
+
+    # Else validate
+    return True
+
 def _validate_shift_validator(self: Any, shift_config: ShiftConfig, model_name: str, data: dict[str, Any],
                               validators: dict[str, Any], field: str) -> bool:
     # If shift_validators not allowed, throw
@@ -634,6 +682,8 @@ def _validate_value(shift_config: ShiftConfig, model_name: str, field: str, typ:
     elif _validate_list_set_tuple(shift_config, model_name, field, typ, val):
         return True
     elif _validate_dict(shift_config, model_name, field, typ, val):
+        return True
+    elif _validate_callable(shift_config, model_name, field, typ, val):
         return True
 
     # If shift subclass, it can validate itself, so validate on this level
@@ -686,7 +736,7 @@ def _validate_field(self: Any, shift_config: ShiftConfig, model_name: str, data:
         # Else use default validator then shift_validator
         else:
             # If normal validation failed, return false
-            if not _validate_value(shift_config, model_name, field, typ, data):
+            if not _validate_value(shift_config, model_name, field, typ, val):
                 return False
 
             # Then use shift_validator
@@ -713,9 +763,12 @@ def _validate_annotated(self: Any, shift_config: ShiftConfig, model_name: str, d
         # Get val
         val = _get_val(self, shift_config, model_name, data, field)
 
-        # If val is validated against typ, set (if validation fails throw is done in function)
+        # If val is validated against typ, set (validation errors are handled inside _validate_field)
         if _validate_field(self, shift_config, model_name, data, validators, field, typ, val):
             _log_verbose(shift_config.verbosity, ["", "", f"Validated field `{field}`, setting"])
+
+            # Resolve val again in case it was updated in @shift_validator
+            val = _get_val(self, shift_config, model_name, data, field)
 
             # If typ is a string or forward ref, try to resolve typ
             if isinstance(typ, str) or isinstance(typ, ForwardRef):
@@ -837,7 +890,7 @@ def _handle_unmatched_fields(self: Any, shift_config: ShiftConfig, model_name: s
 
 
 
-# repr/to_dict Functions
+# Serialization Functions
 ########################################################################################################################
 
 
@@ -882,6 +935,10 @@ def _repr_field(self: Any, shift_config: ShiftConfig, model_name: str, reprs: di
     # if val is default and not include defaults, return None
     elif val == default and not shift_config.include_defaults_in_serialization:
         return None
+
+    # If val is a str, add quotations and return
+    if isinstance(val, str):
+        return "\"" + val + "\""
 
     # If val has __repr__, use
     if has_repr(val):
@@ -982,28 +1039,16 @@ class ShiftMeta(type):
         return cls
 
 class Shift(metaclass=ShiftMeta):
-    """
-    This is a helper base class that can be used on any normal python class to automatically validate class attributes.
+    """Base class that enables automatic validation of annotated class attributes.
 
-    To use this class, have any other class you want to validate inherit `Shift`. Then annotate each var or cls
-    attribute you want to validate and build the class from a dict or using named-args
+    Any class that inherits from this one can declare annotated attributes,
+    and instances may then be constructed from dictionaries or keyword
+    arguments with validation automatically applied.
 
-    Parameters:
-        __shift_config__: ShiftConfig = None
-            A ShiftConfig instance used to configure Shift validation, if left as `None` it will take the value of
-            `DEFAULT_SHIFT_CONFIG` - which can be globally configured
-        __pre_init__(data)
-            A def that Shift will call prior to validation, passing in the constructor dict data
-        @shift_validator(var)
-            A decorator that marks a class def as a validator for `var` - this def must return a bool for its validation
-        @shift_setter(var)
-            A decorator that marks a class def as a setter for `var` - returned values are discarded
-        __post_init__(data)
-            A def that Shift will call after validation, passing in the constructor dict data
-        __repr__() -> str
-            Returns a string representation of the object inheriting Shift
-        __to_dict__() -> dict[str, Any]
-            Returns a dict representation of the object inheriting Shift
+    Attributes:
+        __shift_config__ (ShiftConfig): Configuration object controlling
+            validation behavior. If ``None``, the global
+            ``DEFAULT_SHIFT_CONFIG`` is used.
     """
 
 
@@ -1022,6 +1067,12 @@ class Shift(metaclass=ShiftMeta):
         # Get decorators
         _set_decorators(self.__class__, shift_config, model_name)
 
+        # Check decorators now if configured to
+        if not shift_config.lazy_validate_decorators:
+            _validate_decorators(shift_config, model_name,
+                                 self.__class__.__validators__, self.__class__.__setters__,
+                                 self.__class__.__reprs__, self.__class__.__serializers__)
+
         # If cls has __pre_init__(), call
         if "__pre_init__" in self.__fields__:
             _log_verbose(shift_config.verbosity, [f"Calling __pre_init__ for `{model_name}`"])
@@ -1029,6 +1080,12 @@ class Shift(metaclass=ShiftMeta):
 
         # Only run validation steps if configured to
         if not shift_config.skip_validation:
+
+            # Check decorators now if configured to
+            if shift_config.lazy_validate_decorators:
+                _validate_decorators(shift_config, model_name,
+                                     self.__class__.__validators__, self.__class__.__setters__,
+                                     self.__class__.__reprs__, self.__class__.__serializers__)
 
             # Validate infinite nesting if configured to
             if shift_config.validate_infinite_nesting:
@@ -1068,14 +1125,17 @@ class Shift(metaclass=ShiftMeta):
         model_name = self.__class__.__name__
         shift_config = _get_shift_config(self, model_name)
 
-        if not shift_config.use_shift_repr:
-            return ""
+        if not shift_config.use_builtin_shift_repr:
+            raise ShiftConfigError(model_name, "use_builtin_shift_repr", False,
+                                   " the builtin shift repr was called")
 
         args: list[str] = []
 
-        # Add __shift_config__ if it's not the default value
-        if shift_config != DEFAULT_SHIFT_CONFIG:
-            args.append(f"__shift_config__={repr(shift_config)}")
+        # Add shift config when set to
+        if shift_config.include_shift_config_in_serialization:
+            # Add __shift_config__ if it's not the default value
+            if shift_config.include_defaults_in_serialization and shift_config != DEFAULT_SHIFT_CONFIG:
+                args.append(f"__shift_config__={repr(shift_config)}")
 
         # Add all fields
         for field, (val, default) in _get_all_fields_with_values(self).items():
@@ -1098,14 +1158,17 @@ class Shift(metaclass=ShiftMeta):
         model_name = self.__class__.__name__
         shift_config = _get_shift_config(self, model_name)
 
-        if not shift_config.use_shift_serializer:
-            return {}
+        if not shift_config.use_builtin_shift_serializer:
+            raise ShiftConfigError(model_name, "use_builtin_shift_serializer", False,
+                                   " the builtin shift serializer was called")
 
         result: dict[str, Any] = {}
 
-        # Add __shift_config__ if it's not the default value
-        if shift_config != DEFAULT_SHIFT_CONFIG:
-            result["__shift_config__"] = shift_config.serialize()
+        # Add shift config when set to
+        if shift_config.include_shift_config_in_serialization:
+            # Add __shift_config__ if it's not the default value
+            if shift_config.include_defaults_in_serialization and shift_config != DEFAULT_SHIFT_CONFIG:
+                result["__shift_config__"] = shift_config.serialize()
 
         # Add all fields
         for field, (val, default) in _get_all_fields_with_values(self).items():

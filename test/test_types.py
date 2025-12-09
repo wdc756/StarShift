@@ -249,7 +249,7 @@ def test_any():
     test = Test(**{"any": "Hello"})
     assert test.any == "Hello"
 
-def test_Union():
+def test_union():
     class Test(Shift):
         union: Union[str, int]
 
@@ -317,3 +317,22 @@ def test_forward_ref():
 
     with pytest.raises(ShiftValidationError):
         test = Test(**{"forward_ref": {"ref": "Invalid type"}})
+
+def test_function():
+    def f(val: int) -> int:
+        return val + 1
+
+    class Test(Shift):
+        function: Callable[[int], int]
+
+    test = Test(function=f)
+    assert test.function(1) == 2
+
+    test = Test(**{"function": f})
+    assert test.function(1) == 2
+
+    with pytest.raises(ShiftValidationError):
+        test = Test(function="Invalid type")
+
+    with pytest.raises(ShiftValidationError):
+        test = Test(**{"function": "Invalid type"})

@@ -1,4 +1,4 @@
-from typing import Any, Optional, Union, List, Dict, get_type_hints
+from typing import Any, Optional, Union, Callable, get_type_hints
 from starshift import *
 
 DEFAULT_SHIFT_CONFIG.verbosity = 0
@@ -6,17 +6,14 @@ DEFAULT_SHIFT_CONFIG.verbosity = 0
 
 
 def test():
-    class A(Shift):
-        nest: 'A' = None
+    class Test(Shift):
+        val: int
 
-    a = A(nest=A())
+        @shift_validator('val')
+        def validate_val(self, data: dict[str, Any], field) -> bool:
+            return True
 
-    class A(Shift):
-        nest: Optional['A'] = None
-
-    a = A(nest=A())
-
-
+    test = Test(val=10)
 
 if __name__ == '__main__':
     test()
