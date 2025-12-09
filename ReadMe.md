@@ -22,6 +22,17 @@ pip install starshift
 
 ## This library is nearly complete, but is still early access with bugs
 
+### Features to add:
+- `Literal` support
+- Updated documentation
+- ShiftConfig explinations
+- ShiftConfig function docstrings
+- `get_fields` def to get all type annotations and required fields
+- `test_valid` def to see if a dict is valid
+- Fix Callable validation?
+- Do something with sets, bytes, and bytearrays?
+- Make `Missing` class to help with detecting `None` issues
+- Double-check error messages - all start with StarShift: {model_name}:
 
 ---
 
