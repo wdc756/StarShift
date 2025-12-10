@@ -23,16 +23,27 @@ pip install starshift
 ## This library is nearly complete, but is still early access with bugs
 
 ### Features to add:
-- `Literal` support
+- Unified `type[args]` validation
+    - `Literal` support
+- `Misssing` simple type to improve `is None`
+- Cached infinite recursion checks
+- Cached forward ref resolution
+- Manual forward ref binding
+- Better auto forward ref resolution (walk up frames)
+- `is_valid` def to check shift subclass against dict without constructing
+- `get_schema` def to get `dict` schema for class
+    - Includes `shift_validator` logic
+- `from_schema` def to create a new python class
+- Sandboxed ACE context for `from_schema` shift_* decorators
+- Better error handling
 - Updated documentation
 - ShiftConfig explinations
 - ShiftConfig function docstrings
-- `get_fields` def to get all type annotations and required fields
-- `test_valid` def to see if a dict is valid
-- Fix Callable validation?
-- Do something with sets, bytes, and bytearrays?
-- Make `Missing` class to help with detecting `None` issues
-- Double-check error messages - all start with StarShift: {model_name}:
+
+Other notes:
+- Fix error messages to always be `StarShift: {cls}: {e}`
+- Global shift_* decorators can be accomplished by creating simple Shift subclasses
+- 
 
 ---
 
