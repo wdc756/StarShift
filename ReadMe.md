@@ -43,7 +43,6 @@ pip install starshift
 Other notes:
 - Fix error messages to always be `StarShift: {cls}: {e}`
 - Global shift_* decorators can be accomplished by creating simple Shift subclasses
-- 
 
 ---
 
