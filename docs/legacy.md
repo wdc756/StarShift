@@ -1,14 +1,3 @@
-from starshift import shift_validatorfrom starshift import shift_setterfrom typing import AnyStrfrom doctest import Example
-
-# Star Shift
-
-
-
-A lightweight python class validation library that mimics pydantic's BaseModel dict 
-casting validation.
-
-Created by William Dean Coker
-
 ### This is not uploaded yet, the link is dead for now
 
 This package is on the [PyPI](<add link here>), and can be installed with:
@@ -306,11 +295,3 @@ python libraries called [StarTrace](https://github.com/wdc756/StarTrace).
 
 
 ---
-
-
-## License
-
-This project is under the GNU General Public License, feel free to modify or distribute this 
-code however you see fit
-
-<font color=#6E6E6E>Though a little link back to here would be nice</font>

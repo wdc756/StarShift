@@ -1,7 +1,4 @@
 venv/
 .idea/
-legacy/
 src/starshift.egg-info
 pytest.ini
-Build_Upload.md
-holding.txt

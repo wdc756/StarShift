@@ -8,10 +8,7 @@ from dataclasses import dataclass
 from dataclasses import fields as dataclass_fields
 
 # Used to check types in _validate()
-from typing import get_origin, get_args, get_type_hints, Any, Union, ForwardRef
-
-# used for type hints in functions
-from typing import Type, Callable
+from typing import get_origin, get_args, get_type_hints, Any, Union, ForwardRef, Type, Callable
 
 # Used to evaluate str forward refs
 import sys
