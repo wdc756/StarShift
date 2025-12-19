@@ -9,7 +9,11 @@ def run():
         height: float = 3.14
         relation = {"parent": "someone"}
 
-    test = Test(name="John", age=25, height=1.8)
+        @shift_validator('age', 'height')
+        def validate_age(self, val):
+            return val > 0
+
+    test = Test(name="John", age=25, height=-1.8)
 
 if __name__ == '__main__':
     run()
