@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from typing import get_args, get_type_hints, Any, Union, ForwardRef, Type, Callable, Optional, Literal, TypeAlias
 
 # Evaluate forward references and check function signatures
-import sys, inspect
+import inspect
 
 
 
@@ -116,6 +116,7 @@ _Any_Decorator: TypeAlias = _Transformer | _Validator | _Setter | _Repr | _Seria
 ## Decorator Defs
 ############################################################
 
+# noinspection PyTypeChecker
 def shift_transformer(*fields: str, pre: bool=False, skip_when_pre: bool=True) -> Callable[[_Transformer], _Transformer]:
     """Decorator to mark a function as a shift transformer
 
@@ -130,6 +131,7 @@ def shift_transformer(*fields: str, pre: bool=False, skip_when_pre: bool=True) -
         return func
     return decorator
 
+# noinspection PyTypeChecker
 def shift_validator(*fields: str, pre: bool=False, skip_when_pre: bool=True) -> Callable[[_Validator], _Validator]:
     """Decorator to mark a function as a shift validator
 
@@ -144,6 +146,7 @@ def shift_validator(*fields: str, pre: bool=False, skip_when_pre: bool=True) -> 
         return func
     return decorator
 
+# noinspection PyTypeChecker
 def shift_setter(*fields: str) -> Callable[[_Setter], _Setter]:
     """Decorator to mark a function as a shift setter
 
@@ -154,6 +157,7 @@ def shift_setter(*fields: str) -> Callable[[_Setter], _Setter]:
         return func
     return decorator
 
+# noinspection PyTypeChecker
 def shift_repr(*fields: str) -> Callable[[_Repr], _Repr]:
     """Decorator to mark a function as a shift repr"""
 
@@ -162,6 +166,7 @@ def shift_repr(*fields: str) -> Callable[[_Repr], _Repr]:
         return func
     return decorator
 
+# noinspection PyTypeChecker
 def shift_serializer(*fields: str) -> Callable[[_Serializer], _Serializer]:
     """Decorator to mark a function as a shift serializer"""
 
@@ -497,8 +502,7 @@ def _shift_forward_ref_type_validator(instance: Any, field: ShiftField, info: Sh
         _resolved_forward_refs[field.typ] = resolved
         return _shift_type_validator(instance, resolved, field.val, field, info)
     except Exception as e:
-        raise ShiftValidationError(info.model_name, field.name,
-                                   f"Could not resolve forward reference: {e}")
+        raise ShiftError(info.model_name, f"Could not resolve forward reference for {field.name}: {e}")
 
 def _shift_type_validator(instance: Any, typ: Any, val: Any, field: ShiftField, info: ShiftInfo) -> bool:
     # Get shift type
@@ -522,7 +526,7 @@ def _shift_type_setter(instance: Any, field: ShiftField, info: ShiftInfo) -> Non
     try:
         setattr(info.instance, field.name, field.val)
     except Exception as e:
-        info.errors.append(ShiftSetError(info.model_name, field.name, f"Exception occurred during set: {e}"))
+        info.errors.append(ShiftError(info.model_name, f"Error occured while setting {field.name}: {e}"))
 
 ### Reprs
 ###############################
@@ -987,6 +991,7 @@ def _get_fields(cls: Any, fields: dict, data: dict) -> list[ShiftField]:
     # Return shift_fields list
     return shift_fields
 
+# noinspection PyTypeChecker
 def _get_shift_info(cls: Any, data: dict) -> ShiftInfo:
     # If cls is in model_info, return copy so non-persistent data is not kept
     if cls in _model_info:
@@ -1224,7 +1229,7 @@ def deregister_shift_info(cls: Any) -> None:
 def clear_shift_info_cache(cls: Any) -> None:
     """Clears the shift info cache for a shift class"""
     if cls not in _model_info:
-        raise ShiftSetError("<module>", "_model_info", f"Class `{cls}` is not registered")
+        raise ShiftError("<module>", f"Class `{cls}` is not registered")
     del _model_info[cls]
 
 
