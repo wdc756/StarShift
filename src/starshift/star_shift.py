@@ -24,7 +24,7 @@ import sys, inspect
 _shift_types: dict[Type, ShiftType] = {}
 
 # Resolved forward refs registers (cache)
-_resolved_forward_refs: dict[ForwardRef, Type] = {}
+_resolved_forward_refs: dict[str, Type] = {}
 
 # Global info registers (metadata)
 #   By leaving this here we can keep global references of static class elements like config and decorated class defs
@@ -323,7 +323,52 @@ def _shift_type_transformer(instance: Any, field: ShiftField, info: ShiftInfo) -
     return field.val
 
 def _resolve_forward_ref(typ: str | ForwardRef, info: ShiftInfo) -> Type:
-    raise NotImplementedError("Forward ref resolvers are not implemented yet")
+    # Convert forward ref to string
+    if isinstance(typ, ForwardRef):
+        typ = typ.__forward_arg__
+
+    # Check if already resolved
+    if typ in _resolved_forward_refs:
+        return _resolved_forward_refs[typ]
+
+    # Check if typ is the current class
+    if typ == info.model_name:
+        _resolved_forward_refs[typ] = info.instance.__class__
+        return info.instance.__class__
+
+    # Check if typ is in global model info cache
+    for cls in _model_info.keys():
+        if typ == cls.__name__:
+            _resolved_forward_refs[typ] = cls
+            return cls
+
+    # Check module where class is defined
+    try:
+        cls_type = type(info.instance)
+        module = inspect.getmodule(cls_type.__module__)
+        if module and hasattr(module, typ):
+            resolved = getattr(module, typ)
+            _resolved_forward_refs[typ] = resolved
+            return resolved
+    except (AttributeError, KeyError):
+        pass
+
+    # Check builtins
+    import builtins
+    if hasattr(builtins, typ):
+        resolved = getattr(builtins, typ)
+        _resolved_forward_refs[typ] = resolved
+        return resolved
+
+    # Else raise exception
+    raise ShiftError(info.model_name, f"Could not resolve forward reference: {typ}")
+
+def _shift_forward_ref_type_transformer(instance: Any, field: ShiftField, info: ShiftInfo) -> Any:
+    # Resolve forward ref
+    _ = _resolve_forward_ref(field.typ, info)
+
+    # Run normal transformer
+    return _shift_type_transformer(instance, field, info)
 
 ### Validators
 ###############################
@@ -564,7 +609,7 @@ _all_of_pair_shift_type = ShiftType(_shift_type_transformer,
 _shift_shift_type = ShiftType(_shift_type_transformer,
                               _shift_shift_type_validator, _shift_type_setter,
                               _shift_type_repr, _shift_shift_type_serializer)
-_forward_ref_shift_type = ShiftType(_shift_type_transformer,
+_forward_ref_shift_type = ShiftType(_shift_forward_ref_type_transformer,
                                     _shift_forward_ref_type_validator, _shift_type_setter,
                                     _shift_type_repr, _shift_forward_ref_type_serializer)
 
@@ -1008,9 +1053,6 @@ class ShiftMeta(type):
         # Build subclass
         cls = super().__new__(mcls, name, bases, namespace)
 
-        # walk up frames adding context until we get this function call - used later to resolve forward refs
-        print('raise NotImplementedError("Frame gathering is not supported yet")')
-
         # Return cls instance for usage elsewhere
         return cls
 
@@ -1146,12 +1188,16 @@ def clear_shift_types() -> None:
 ## Forward Refs
 ############################################################
 
-def register_forward_ref(ref: ForwardRef, typ: Type) -> None:
+def register_forward_ref(ref: str | ForwardRef, typ: Type) -> None:
     """Registers a forward ref to a resolved type"""
+    if isinstance(ref, ForwardRef):
+        ref = ref.__forward_arg__
     _resolved_forward_refs[ref] = typ
 
-def deregister_forward_ref(ref: ForwardRef) -> None:
+def deregister_forward_ref(ref: str | ForwardRef) -> None:
     """Deregisters a resolved forward ref"""
+    if isinstance(ref, ForwardRef):
+        ref = ref.__forward_arg__
     if ref not in _resolved_forward_refs:
         raise ShiftError("<module>", f"Forward ref `{ref}` is not registered")
     del _resolved_forward_refs[ref]

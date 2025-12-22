@@ -4,14 +4,12 @@ from starshift import *
 
 def run():
     class A(Shift):
-        val: int
+        ref: "B"
 
     class B(Shift):
-        nest: A
+        val: int
 
-    test = B(nest=A(val=1))
-    print(repr(test))
-    print(test.serialize())
+    test = A(ref=B(val=10))
 
 if __name__ == '__main__':
     run()
