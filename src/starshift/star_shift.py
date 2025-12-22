@@ -14,6 +14,28 @@ import sys, inspect
 
 
 
+# Global Registers & Defaults
+########################################################################################################################
+
+
+
+# Global type category registers
+#   Leave override here in case users want an easy way to add more static types
+_shift_types: dict[Type, ShiftType] = {}
+
+# Resolved forward refs registers (cache)
+_resolved_forward_refs: dict[ForwardRef, Type] = {}
+
+# Global info registers (metadata)
+#   By leaving this here we can keep global references of static class elements like config and decorated class defs
+_model_info: dict[Type, ShiftInfo] = {}
+
+# Global function registers, used to skip inspecting shift-decorated functions
+#   True is advanced, False is simple
+_shift_functions: dict[Callable, bool] = {}
+
+
+
 # Logging
 ########################################################################################################################
 
@@ -57,21 +79,6 @@ class ShiftConfigError(ShiftError):
     def __init__(self, model_name: str, invalid_config: str, invalid_config_val: Any, msg: str):
         super().__init__(model_name, f"Invalid ShiftConfig: `{invalid_config}` was set to `{invalid_config_val}`, but {msg}")
 
-class ShiftTransformError(ShiftError):
-    """Raised when a transform fails"""
-    def __init__(self, model_name: str, field: str, msg: str):
-        super().__init__(model_name, f"Field `{field}` encountered an error during transform: {msg}")
-
-class ShiftValidationError(ShiftError):
-    """Raised when any validation fails"""
-    def __init__(self, model_name: str, field: str, msg: str):
-        super().__init__(model_name, f"Validation failed for field `{field}`: {msg}")
-
-class ShiftSetError(ShiftError):
-    """Raised when any set operation fails"""
-    def __init__(self, model_name: str, field: str, msg: str):
-        super().__init__(model_name, f"Field `{field}` encountered an error during set: {msg}")
-
 
 
 # Decorators
@@ -80,6 +87,7 @@ class ShiftSetError(ShiftError):
 
 
 ## Type Aliases
+############################################################
 
 _SimpleTransformer: TypeAlias = Callable[[Any, Any], Any]
 _AdvancedTransformer: TypeAlias = Callable[[Any, "ShiftField", "ShiftInfo"], Any]
@@ -106,6 +114,7 @@ _Any_Decorator: TypeAlias = _Transformer | _Validator | _Setter | _Repr | _Seria
 
 
 ## Decorator Defs
+############################################################
 
 def shift_transformer(*fields: str, pre: bool=False, skip_when_pre: bool=True) -> Callable[[_Transformer], _Transformer]:
     """Decorator to mark a function as a shift transformer
@@ -171,14 +180,20 @@ def shift_advanced(func: _Any_Decorator) -> _Any_Decorator:
     func.__shift_advanced__ = True
     return func
 
-
 def shift_function_wrapper(field: ShiftField, info: ShiftInfo, func: Callable) -> Any | None:
     """Wrapper to automatically determine if the function is advanced or not, and call appropriately, returning the result"""
+    # Check cache first
+    if func in _shift_functions:
+        if _shift_functions[func]:
+            return shift_advanced(func)(info.instance, field, info)
+        return func(info.instance, field.val)
+
     # Get function signature
     sig = inspect.signature(func)
 
     # If len(params) == 2, it's a simple function
     if len(sig.parameters) == 2:
+        _shift_functions[func] = False
         return func(info.instance, field.val)
 
     # Else if len(params) == 3 and it expects a ShiftField and ShiftInfo, it's an advanced function
@@ -190,6 +205,7 @@ def shift_function_wrapper(field: ShiftField, info: ShiftInfo, func: Callable) -
         elif param.annotation == ShiftInfo:
             expects_shift_info = True
     if len(sig.parameters) == 3 and expects_shift_field and expects_shift_info:
+        _shift_functions[func] = True
         return func(info.instance, field, info)
 
     # Else invalid signature
@@ -282,6 +298,13 @@ def get_shift_type(typ: Any) -> ShiftType | None:
     # If in types, return the type
     if typ in _shift_types:
         return _shift_types[typ]
+
+    # If type is a Shift subclass, return shift type
+    try:
+        if issubclass(typ, Shift):
+            return _shift_types[Shift]
+    except Exception as e:
+        pass
 
     # Else type is unknown, return None
     return None
@@ -443,10 +466,8 @@ def _shift_type_validator(instance: Any, typ: Any, val: Any, field: ShiftField, 
         except Exception:
             return False
 
-    # Build temporary ShiftField for validation
+    # Build temporary ShiftField for validation, and call validator
     temp_field = ShiftField(name=f"{field.name}.{typ}", typ=typ, val=val)
-
-    # Call validator
     return shift_typ.validator(instance, temp_field, info)
 
 ### Setters
@@ -462,44 +483,90 @@ def _shift_type_setter(instance: Any, field: ShiftField, info: ShiftInfo) -> Non
 ###############################
 
 def _shift_type_repr(instance: Any, field: ShiftField, info: ShiftInfo) -> str:
+    if field.val == field.default and not info.shift_config.include_default_fields_in_serialization:
+        return ""
     return repr(field.val)
 
 ### Serializers
 ###############################
 
-def _shift_type_serializer(instance: Any, field: ShiftField, info: ShiftInfo) -> dict[str, Any]:
-    # Link to the recursive shift serialization loop?
-    raise NotImplementedError("Builtin type serializers are not implemented yet")
+def _shift_missing_type_serializer(instance: Any, field: ShiftField, info: ShiftInfo) -> None:
+    return None
 
+def _shift_base_type_serializer(instance: Any, field: ShiftField, info: ShiftInfo) -> Any:
+    if field.val == field.default and not info.shift_config.include_default_fields_in_serialization:
+        return None
+    return field.val
 
+def _shift_all_of_serializer(instance: Any, field: ShiftField, info: ShiftInfo) -> list[Any] | None:
+    if field.val == field.default and not info.shift_config.include_default_fields_in_serialization:
+        return None
+
+    vals = []
+    for val in field.val:
+        vals.append(_shift_type_serializer(instance, type(val), val, field, info))
+    return vals
+
+def _shift_all_of_pair_serializer(instance: Any, field: ShiftField, info: ShiftInfo) -> dict[str, Any] | None:
+    if field.val == field.default and not info.shift_config.include_default_fields_in_serialization:
+        return None
+
+    vals = {}
+    for key, val in field.val.items():
+        vals[key] = _shift_type_serializer(instance, type(val), val, field, info)
+    return vals
+
+def _shift_shift_type_serializer(instance: Any, field: ShiftField, info: ShiftInfo) -> dict[str, Any] | None:
+    if field.val == field.default and not info.shift_config.include_default_fields_in_serialization:
+        return None
+
+    return field.val.serialize()
+
+def _shift_forward_ref_type_serializer(instance: Any, field: ShiftField, info: ShiftInfo) -> Any:
+    if field.val == field.default and not info.shift_config.include_default_fields_in_serialization:
+        return None
+
+    return _shift_type_serializer(instance, field.typ, field.val, field, info)
+
+def _shift_type_serializer(instance: Any, typ: Any, val: Any, field: ShiftField, info: ShiftInfo) -> Any:
+    # Get shift type
+    shift_typ = get_shift_type(field.typ)
+
+    # If not a shift type, return the field's value as-is
+    if not shift_typ:
+        return {field.name: field.val}
+
+    # Build temporary ShiftField for serialization and call serializer
+    temp_field = ShiftField(name=f"{field.name}.{typ}", typ=typ, val=val)
+    return shift_function_wrapper(temp_field, info, shift_typ.serializer)
 
 ## Builtin Types
 ############################################################
 
 _missing_shift_type = ShiftType(_shift_type_transformer,
                                 _shift_missing_type_validator, _shift_type_setter,
-                                _shift_type_repr, _shift_type_serializer)
+                                _shift_type_repr, _shift_missing_type_serializer)
 _base_shift_type = ShiftType(_shift_type_transformer,
                              _shift_base_type_validator, _shift_type_setter,
-                             _shift_type_repr, _shift_type_serializer)
+                             _shift_type_repr, _shift_base_type_serializer)
 _one_of_shift_type = ShiftType(_shift_type_transformer,
                                _shift_one_of_type_validator, _shift_type_setter,
-                               _shift_type_repr, _shift_type_serializer)
+                               _shift_type_repr, _shift_base_type_serializer)
 _all_of_single_shift_type = ShiftType(_shift_type_transformer,
                                       _shift_all_of_single_validator, _shift_type_setter,
-                                      _shift_type_repr, _shift_type_serializer)
+                                      _shift_type_repr, _shift_all_of_serializer)
 _all_of_many_shift_type = ShiftType(_shift_type_transformer,
                                     _shift_all_of_many_validator, _shift_type_setter,
-                                    _shift_type_repr, _shift_type_serializer)
+                                    _shift_type_repr, _shift_all_of_serializer)
 _all_of_pair_shift_type = ShiftType(_shift_type_transformer,
                                     _shift_all_of_pair_validator, _shift_type_setter,
-                                    _shift_type_repr, _shift_type_serializer)
+                                    _shift_type_repr, _shift_all_of_pair_serializer)
 _shift_shift_type = ShiftType(_shift_type_transformer,
                               _shift_shift_type_validator, _shift_type_setter,
-                              _shift_type_repr, _shift_type_serializer)
+                              _shift_type_repr, _shift_shift_type_serializer)
 _forward_ref_shift_type = ShiftType(_shift_type_transformer,
                                     _shift_forward_ref_type_validator, _shift_type_setter,
-                                    _shift_type_repr, _shift_type_serializer)
+                                    _shift_type_repr, _shift_forward_ref_type_serializer)
 
 _shift_builtin_types: dict[Type, ShiftType] = {
     MISSING: _missing_shift_type,
@@ -526,7 +593,8 @@ _shift_builtin_types: dict[Type, ShiftType] = {
     Optional: _one_of_shift_type,
     Literal: _one_of_shift_type,
 
-    "Shift": _shift_shift_type,
+    # This is registered after Shift is defined
+    #Shift: _shift_shift_type,
 
     ForwardRef: _forward_ref_shift_type,
 }
@@ -544,42 +612,28 @@ class ShiftConfig:
 
     Attributes:
         verbosity (int): Logging level: 0 = silent, 1 = errors, 2 = warnings, 3 = info, 4 = debug; Default: 0
-        fail_fast (bool): If True, processing will stop on the first error encountered. Default: False
+        fail_fast (bool): If True, processing will stop on the first error encountered. Default; False
+
+        //allow_arbitrary_keys (bool): If True, arbitrary keys will be allowed in kwarg constructors; Default: False
+
+        include_default_fields_in_serialization (bool): If True, default value fields will be serialized; Default: False
+        //include_private_fields_in_serialization (bool): If True, private fields will be serialized; Default: False
+
     """
     verbosity: int = 0
     fail_fast: bool = False
-    # Put some more values here later
+
+    #allow_arbitrary_keys: bool = False
+
+    include_default_fields_in_serialization: bool = False
+    #include_private_fields_in_serialization: bool = False
 
 
 
 ## Presets
 ############################################################
 
-STRICT_SHIFT_CONFIG = ShiftConfig(verbosity=1, fail_fast=True)
 DEFAULT_SHIFT_CONFIG = ShiftConfig()
-RELAXED_SHIFT_CONFIG = ShiftConfig(verbosity=2)
-# Add more later
-
-
-
-# Global Registers & Defaults
-########################################################################################################################
-
-
-
-# Global type category registers
-#   Leave override here in case users want an easy way to add more static types
-_shift_types: dict[Type, ShiftType] = {
-
-}
-_shift_types.update(_shift_builtin_types)
-
-# Resolved forward refs registers (cache)
-_resolved_forward_refs: dict[ForwardRef, Type] = {}
-
-# Global info registers (metadata)
-#   By leaving this here we can keep global references of static class elements like config and decorated class defs
-_model_info: dict[Type, ShiftInfo] = {}
 
 
 
@@ -588,154 +642,149 @@ _model_info: dict[Type, ShiftInfo] = {}
 
 
 
-## Generic
+## Transform
 ############################################################
 
-_ProcessType = Literal["transformer", "validator", "setter", "repr", "serializer"]
+def _transform_field(field: ShiftField, info: ShiftInfo) -> None:
+    # Call pre-transformer if present
+    if field.name in info.pre_transformers:
+        field.val = shift_function_wrapper(field, info, info.pre_transformers[field.name])
+    if field.name in info.pre_transformer_skips:
+        return
 
-@dataclass
-class _ProcessConfig:
-    """Configuration for a specific process execution."""
-    skip_on_pre: bool
-    has_pre: bool
-    pre_func: Callable | None
-    has_post: bool
-    post_func: Callable | None
-
-def _get_process_config(field: ShiftField, info: ShiftInfo, process_type: _ProcessType) -> _ProcessConfig:
-    """Get the configuration for a specific phase."""
-
-    if process_type == "transformer":
-        return _ProcessConfig(
-            skip_on_pre=field.name in info.pre_transformer_skips,
-            has_pre=field.name in info.pre_transformers,
-            pre_func=info.pre_transformers.get(field.name),
-            has_post=field.name in info.transformers,
-            post_func=info.transformers.get(field.name)
-        )
-
-    elif process_type == "validator":
-        return _ProcessConfig(
-            skip_on_pre=field.name in info.pre_validator_skips,
-            has_pre=field.name in info.pre_validators,
-            pre_func=info.pre_validators.get(field.name),
-            has_post=field.name in info.validators,
-            post_func=info.validators.get(field.name)
-        )
-
-    elif process_type == "setter":
-        return _ProcessConfig(
-            skip_on_pre=False,
-            has_pre=False,
-            pre_func=None,
-            has_post=field.name in info.setters,
-            post_func=info.setters.get(field.name)
-        )
-
-    elif process_type == "repr":
-        return _ProcessConfig(
-            skip_on_pre=False,
-            has_pre=False,
-            pre_func=None,
-            has_post=field.name in info.reprs,
-            post_func=info.reprs.get(field.name)
-        )
-
-    elif process_type == "serializer":
-        return _ProcessConfig(
-            skip_on_pre=False,
-            has_pre=False,
-            pre_func=None,
-            has_post=field.name in info.serializers,
-            post_func=info.serializers.get(field.name)
-        )
-
-    else:
-        raise ValueError(f"Invalid phase type: {process_type}")
-
-def _process_field(field: ShiftField, info: ShiftInfo, process_type: _ProcessType) -> Any | None:
-    # Get process config
-    process_config = _get_process_config(field, info, process_type)
-
-    # If pre-phase, use
-    if process_config.has_pre:
-        res = shift_function_wrapper(field, info, process_config.pre_func)
-
-        # If pre-phase skip is true, return
-        if process_config.skip_on_pre:
-            return res
-
-    # Get and use shift type function
+    # Get shift type
     shift_typ = get_shift_type(field.typ)
-    if not shift_typ:
-        raise ShiftError(info.model_name,
-                         f"Type `{field.typ}` is not a known shift type for process `{process_type}`")
-    res = shift_function_wrapper(field, info, getattr(shift_typ, process_type))
+    if shift_typ is None:
+        raise ShiftError(info.model_name, f"Could not resolve shift type for {field.name}: {field.typ}")
 
-    # For validation, early return on failure
-    if process_type == "validator" and res is False:
-        return False
+    # Call transformer
+    field.val = shift_function_wrapper(field, info, shift_typ.transformer)
 
-    # If post-phase, use
-    if process_config.has_post:
-        res = shift_function_wrapper(field, info, process_config.post_func)
-
-    return res
-
-def _process(info: ShiftInfo, process_type: _ProcessType) -> bool | None:
-    # Tracks validation of all fields
-    all_valid = True
-
-    # Process each field
-    for field in info.fields:
-        try:
-            res = _process_field(field, info, process_type)
-
-            # Update field value for transform
-            if process_type == "transformer":
-                field.val = res
-
-            # Track validation results
-            elif process_type == "validator" and res is False:
-                all_valid = False
-                if info.shift_config.fail_fast:
-                    return False
-
-        except ShiftError as e:
-            info.errors.append(e)
-            if info.shift_config.fail_fast:
-                return False
-            all_valid = False
-
-    return all_valid if process_type == "validator" else None
-
-
-
-## Processes
-############################################################
+    # Call field transformer if present
+    if field.name in info.transformers:
+        field.val = shift_function_wrapper(field, info, info.transformers[field.name])
 
 def _transform(info: ShiftInfo) -> None:
-    _process(info, "transformer")
+    for field in info.fields:
+        try:
+            _transform_field(field, info)
+        except ShiftError as e:
+            info.errors.append(e)
+
+
+
+## Validate
+############################################################
+
+def _validate_field(field: ShiftField, info: ShiftInfo) -> bool:
+    # Call pre-validator if present
+    if field.name in info.pre_validators and not shift_function_wrapper(field, info, info.pre_validators[field.name]):
+        return False
+    if field.name in info.pre_validator_skips:
+        return True
+
+    # Get shift type
+    shift_typ = get_shift_type(field.typ)
+    if shift_typ is None:
+        raise ShiftError(info.model_name, f"Could not resolve shift type for {field.name}: {field.typ}")
+
+    # Call validator
+    if not shift_function_wrapper(field, info, shift_typ.validator):
+        return False
+
+    # Call field validator if present
+    if field.name in info.validators and not shift_function_wrapper(field, info, info.validators[field.name]):
+        return False
+
+    return True
 
 def _validate(info: ShiftInfo) -> bool:
-    return _process(info, "validator")
+    all_valid = True
+    for field in info.fields:
+        try:
+            if not _validate_field(field, info):
+                all_valid = False
+                raise ShiftError(info.model_name, f"Validation failed for {field.name}")
+        except ShiftError as e:
+            info.errors.append(e)
+
+    return all_valid
+
+
+
+## Set
+############################################################
+
+def _set_field(field: ShiftField, info: ShiftInfo) -> None:
+    # If field setter, call
+    if field.name in info.setters:
+        shift_function_wrapper(field, info, info.setters[field.name])
+        return
+
+    # Get shift type
+    shift_typ = get_shift_type(field.typ)
+    if shift_typ is None:
+        raise ShiftError(info.model_name, f"Could not resolve shift type for {field.name}: {field.typ}")
+
+    # Call shift type setter
+    shift_function_wrapper(field, info, shift_typ.setter)
 
 def _set(info: ShiftInfo) -> None:
-    _process(info, "setter")
+    for field in info.fields:
+        try:
+            _set_field(field, info)
+        except ShiftError as e:
+            info.errors.append(e)
+
+
+
+## Repr
+############################################################
+
+def _repr_field(field: ShiftField, info: ShiftInfo) -> str:
+    # If field repr, call
+    if field.name in info.reprs:
+        return shift_function_wrapper(field, info, info.reprs[field.name])
+
+    # Get shift type
+    shift_typ = get_shift_type(field.typ)
+    if shift_typ is None:
+        raise ShiftError(info.model_name, f"Could not resolve shift type for {field.name}: {field.typ}")
+
+    # Call shift type repr
+    return shift_function_wrapper(field, info, shift_typ.repr)
 
 def _repr(info: ShiftInfo) -> str:
     res: list[str] = []
     for field in info.fields:
-        res = _process_field(field, info, "repr")
-        if res:
-            res.append(f"{field.name}={res}")
+        r = (_repr_field(field, info))
+        if r and len(r):
+            res.append(field.name + "=" + r)
     return f"{info.model_name}({', '.join(res)})"
+
+
+
+## Serialize
+############################################################
+
+def _serialize_field(field: ShiftField, info: ShiftInfo) -> dict[str, Any]:
+    # If field serializer, call
+    if field.name in info.serializers:
+        return shift_function_wrapper(field, info, info.serializers[field.name])
+
+    # Get shift type
+    shift_typ = get_shift_type(field.typ)
+    if shift_typ is None:
+        raise ShiftError(info.model_name, f"Could not resolve shift type for {field.name}: {field.typ}")
+
+    # Call shift type serializer
+    return shift_function_wrapper(field, info, shift_typ.serializer)
 
 def _serialize(info: ShiftInfo) -> dict[str, Any]:
     result = {}
     for field in info.fields:
-        res = _process_field(field, info, "serializer")
-        if res is not MISSING:
+        res = _serialize_field(field, info)
+        if res is not None:
             result[field.name] = res
     return result
 
@@ -995,7 +1044,7 @@ class Shift(metaclass=ShiftMeta):
     def transform(cls, info: ShiftInfo=None, **data) -> None:
         # Get shift info if not provided
         if info is None:
-            info = _get_shift_info(cls.__class__, data)
+            info = _get_shift_info(cls, data)
 
         # Run transform process
         _transform(info)
@@ -1004,7 +1053,7 @@ class Shift(metaclass=ShiftMeta):
     def validate(cls, info: ShiftInfo=None, **data) -> bool:
         # Get shift info if not provided
         if info is None:
-            info = _get_shift_info(cls.__class__, data)
+            info = _get_shift_info(cls, data)
 
         # Run transform process
         cls.transform(info, **data)
@@ -1021,7 +1070,7 @@ class Shift(metaclass=ShiftMeta):
     def set(cls, info: ShiftInfo=None, **data) -> None:
         # Get shift info if not provided
         if info is None:
-            info = _get_shift_info(cls.__class__, data)
+            info = _get_shift_info(cls, data)
 
         # Run set process
         _set(info)
@@ -1030,7 +1079,7 @@ class Shift(metaclass=ShiftMeta):
     def __repr__(cls, info: ShiftInfo=None) -> str:
         # Get shift info if not provided
         if info is None:
-            info = _get_shift_info(cls.__class__, {})
+            info = _get_shift_info(cls, {})
 
         # Run repr process
         return _repr(info)
@@ -1039,7 +1088,7 @@ class Shift(metaclass=ShiftMeta):
     def serialize(cls, info: ShiftInfo=None) -> dict[str, Any]:
         # Get shift info if not provided
         if info is None:
-            info = _get_shift_info(cls.__class__, {})
+            info = _get_shift_info(cls, {})
 
         # Run serialization process
         return _serialize(info)
@@ -1048,6 +1097,8 @@ class Shift(metaclass=ShiftMeta):
 
     @classmethod
     def __eq__(cls, other: Any) -> bool:
+        if not isinstance(other, cls):
+            return False
         return cls.serialize() == other.serialize()
 
     @classmethod
@@ -1073,15 +1124,27 @@ class Shift(metaclass=ShiftMeta):
 
 
 
-def register_type(typ: Type, shift_type: ShiftType) -> None:
+## Shift Types
+############################################################
+
+def register_shift_type(typ: Type, shift_type: ShiftType) -> None:
     """Registers a shift type"""
     _shift_types[typ] = shift_type
 
-def deregister_type(typ: Type) -> None:
+def deregister_shift_type(typ: Type) -> None:
     """Deregisters a shift type"""
     if typ not in _shift_types:
-        raise ShiftSetError("<module>", "_shift_types", f"Type `{typ}` is not registered")
+        raise ShiftError("<module>", f"Type `{typ}` is not registered")
     del _shift_types[typ]
+
+def clear_shift_types() -> None:
+    """Clears all registered shift types"""
+    _shift_types.clear()
+
+
+
+## Forward Refs
+############################################################
 
 def register_forward_ref(ref: ForwardRef, typ: Type) -> None:
     """Registers a forward ref to a resolved type"""
@@ -1090,11 +1153,75 @@ def register_forward_ref(ref: ForwardRef, typ: Type) -> None:
 def deregister_forward_ref(ref: ForwardRef) -> None:
     """Deregisters a resolved forward ref"""
     if ref not in _resolved_forward_refs:
-        raise ShiftSetError("<module>", "_resolved_forward_refs", f"Forward ref `{ref}` is not registered")
+        raise ShiftError("<module>", f"Forward ref `{ref}` is not registered")
     del _resolved_forward_refs[ref]
+
+def clear_forward_refs() -> None:
+    """Clears all registered forward refs"""
+    _resolved_forward_refs.clear()
+
+
+
+## Shift Infos
+############################################################
+
+def generate_shift_info(cls: Any) -> None:
+    """Generates shift info for a class"""
+    _get_shift_info(cls, {})
+
+def deregister_shift_info(cls: Any) -> None:
+    """Deregisters shift info for a class"""
+    if cls not in _model_info:
+        raise ShiftError("<module>", f"Class `{cls.__name__}` is not registered")
+    del _model_info[cls]
 
 def clear_shift_info_cache(cls: Any) -> None:
     """Clears the shift info cache for a shift class"""
     if cls not in _model_info:
         raise ShiftSetError("<module>", "_model_info", f"Class `{cls}` is not registered")
     del _model_info[cls]
+
+
+
+## Shift Functions
+############################################################
+
+def generate_shift_function(func: Callable) -> None:
+    """Generates the shift function inspection data for a shift-decorated function"""
+    # Get function signature
+    sig = inspect.signature(func)
+
+    # If len(params) == 2, it's a simple function
+    if len(sig.parameters) == 2:
+        _shift_functions[func] = False
+
+    # Else if len(params) == 3 and it expects a ShiftField and ShiftInfo, it's an advanced function
+    expects_shift_field = False
+    expects_shift_info = False
+    for param in sig.parameters.values():
+        if param.annotation == ShiftField:
+            expects_shift_field = True
+        elif param.annotation == ShiftInfo:
+            expects_shift_info = True
+    if len(sig.parameters) == 3 and expects_shift_field and expects_shift_info:
+        _shift_functions[func] = True
+
+def deregister_shift_function(func: Callable) -> None:
+    """De-register the inspection data for a shift-decorated function"""
+    if func not in _shift_functions:
+        raise ShiftError("<module>", f"`{func}` not a registered shift function")
+    del _shift_functions[func]
+
+def clear_shift_function_cache() -> None:
+    """Clears the shift function cache"""
+    _shift_functions.clear()
+
+
+
+## Misc
+############################################################
+
+# Register Builtin types
+_shift_types.update(_shift_builtin_types)
+# Register Shift type
+_shift_types[Shift] = _shift_shift_type
