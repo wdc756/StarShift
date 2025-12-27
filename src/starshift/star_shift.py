@@ -7,7 +7,8 @@
 from dataclasses import dataclass
 
 # Check types in validation
-from typing import get_origin, get_args, get_type_hints, Any, Union, ForwardRef, Type, Callable, Optional, Literal, TypeAlias
+from typing import get_origin, get_args, get_type_hints, Any, Union, ForwardRef, Type, Optional, Literal, TypeAlias
+from collections.abc import Iterable, Callable
 
 # Evaluate forward references and check function signatures
 import inspect
@@ -309,6 +310,10 @@ def get_shift_type(typ: Any) -> ShiftType | None:
     if origin in _shift_types:
         return _shift_types[origin]
 
+    # If type is a ForwardRef, return the type
+    if isinstance(typ, ForwardRef):
+        return _shift_types[ForwardRef]
+
     # If type is a Shift subclass, return shift type
     try:
         if issubclass(typ, Shift):
@@ -405,6 +410,16 @@ def _shift_base_type_validator(instance: Any, field: ShiftField, info: ShiftInfo
 def _shift_any_type_validator(instance: Any, field: ShiftField, info: ShiftInfo) -> bool:
     return True
 
+def _shift_literal_type_validator(instance: Any, field: ShiftField, info: ShiftInfo) -> bool:
+    args = get_args(field.typ)
+
+    # If no literal args, nothing to validate
+    if not args:
+        return True
+
+    # If val is not in literal args, return False
+    return field.val in args
+
 def _shift_one_of_type_validator(instance: Any, field: ShiftField, info: ShiftInfo) -> bool:
     args = get_args(field.typ)
 
@@ -431,6 +446,10 @@ def _shift_all_of_single_validator(instance: Any, field: ShiftField, info: Shift
     if len(args) > 1:
         return False
 
+    # If val is not iterable, return False
+    if not isinstance(field.val, Iterable):
+        return False
+
     # Check all args
     for val in field.val:
         if not _shift_type_validator(instance, args[0], val, field, info):
@@ -446,7 +465,12 @@ def _shift_all_of_many_validator(instance: Any, field: ShiftField, info: ShiftIn
     if not args:
         return True
 
+    # If val does not have a len, return False
+    if not isinstance(field.val, Iterable):
+        return False
+
     # If lens don't match, return False
+    # noinspection PyTypeChecker
     if len(field.val) != len(args):
         return False
 
@@ -465,6 +489,10 @@ def _shift_all_of_pair_validator(instance: Any, field: ShiftField, info: ShiftIn
     if not args:
         return True
 
+    # If val does not have items(), return False
+    if not hasattr(field.val, "items"):
+        return False
+
     # Check all keys and vals against args
     for key, val in field.val.items():
         if not _shift_type_validator(instance, args[0], key, field, info):
@@ -473,6 +501,66 @@ def _shift_all_of_pair_validator(instance: Any, field: ShiftField, info: ShiftIn
             return False
 
     # All key-val-arg pairs matched
+    return True
+
+def _shift_callable_validator(instance: Any, field: ShiftField, info: ShiftInfo) -> bool:
+    # If val is not callable, return False
+    if not callable(field.val):
+        return False
+
+    args = get_args(field.typ)
+
+    # If no type args nothing to check
+    if not args:
+        return True
+
+    # Callable type args should be [param_types, return_type]
+    if len(args) != 2:
+        return False
+    param_types = args[0]
+    return_type = args[1]
+
+    # Get the actual function signature
+    try:
+        sig = inspect.signature(field.val)
+    except (ValueError, TypeError):
+        # Some callables don't have inspectable signatures (built-ins, C extensions)
+        return True
+
+    # Check parameter count
+    params = list(sig.parameters.values())
+
+    # Handle special case: Callable[..., ReturnType] means "any params"
+    if param_types is Ellipsis or param_types == ...:
+        # Just check return type
+        if return_type is not inspect.Signature.empty:
+            if sig.return_annotation == inspect.Signature.empty:
+                return False  # Expected return type but function has none
+            if sig.return_annotation != return_type:
+                return False
+        return True
+
+    # Check parameter count matches
+    if len(params) != len(param_types):
+        return False
+
+    # Check each parameter's annotation matches expected type
+    for param, expected_type in zip(params, param_types):
+        if param.annotation == inspect.Parameter.empty:
+            # Function has no annotation for this parameter
+            continue
+
+        # Check if annotation matches expected type
+        if param.annotation != expected_type:
+            return False
+
+    # Check return type annotation
+    if return_type is not inspect.Signature.empty:
+        if sig.return_annotation == inspect.Signature.empty:
+            return False  # Expected return type but function has none
+        if sig.return_annotation != return_type:
+            return False
+
     return True
 
 def _shift_shift_type_validator(instance: Any, field: ShiftField, info: ShiftInfo) -> bool:
@@ -609,6 +697,9 @@ _base_shift_type = ShiftType(_shift_type_transformer,
 _any_shift_type = ShiftType(_shift_type_transformer,
                             _shift_any_type_validator, _shift_type_setter,
                             _shift_type_repr, _shift_base_type_serializer)
+_literal_shift_type = ShiftType(_shift_type_transformer,
+                                _shift_literal_type_validator, _shift_type_setter,
+                                _shift_type_repr, _shift_base_type_serializer)
 _one_of_shift_type = ShiftType(_shift_type_transformer,
                                _shift_one_of_type_validator, _shift_type_setter,
                                _shift_type_repr, _shift_base_type_serializer)
@@ -621,6 +712,9 @@ _all_of_many_shift_type = ShiftType(_shift_type_transformer,
 _all_of_pair_shift_type = ShiftType(_shift_type_transformer,
                                     _shift_all_of_pair_validator, _shift_type_setter,
                                     _shift_type_repr, _shift_all_of_pair_serializer)
+_shift_callable_shift_type = ShiftType(_shift_type_transformer,
+                                       _shift_callable_validator, _shift_type_setter,
+                                       _shift_type_repr, _shift_base_type_serializer)
 _shift_shift_type = ShiftType(_shift_type_transformer,
                               _shift_shift_type_validator, _shift_type_setter,
                               _shift_type_repr, _shift_shift_type_serializer)
@@ -646,13 +740,15 @@ _shift_builtin_types: dict[Type, ShiftType] = {
     frozenset: _all_of_single_shift_type,
 
     tuple: _all_of_many_shift_type,
-    Callable: _all_of_many_shift_type,
+
+    Callable: _shift_callable_shift_type,
 
     dict: _all_of_pair_shift_type,
 
     Union: _one_of_shift_type,
     Optional: _one_of_shift_type,
-    Literal: _one_of_shift_type,
+
+    Literal: _literal_shift_type,
 
     # This is registered after Shift is defined
     #Shift: _shift_shift_type,
@@ -708,7 +804,7 @@ def _transform_field(field: ShiftField, info: ShiftInfo) -> None:
     # Call pre-transformer if present
     if field.name in info.pre_transformers:
         field.val = shift_function_wrapper(field, info, info.pre_transformers[field.name])
-    if field.name in info.pre_transformer_skips:
+    if field.name in info.pre_transformers and field.name in info.pre_transformer_skips:
         return
 
     # Get shift type
@@ -740,7 +836,7 @@ def _validate_field(field: ShiftField, info: ShiftInfo) -> bool:
     # Call pre-validator if present
     if field.name in info.pre_validators and not shift_function_wrapper(field, info, info.pre_validators[field.name]):
         return False
-    if field.name in info.pre_validator_skips:
+    if field.name in info.pre_validators and field.name in info.pre_validator_skips:
         return True
 
     # Get shift type
@@ -953,8 +1049,12 @@ def _get_field_decorators(cls: Any, fields: dict) -> dict[str, list[_Any_Decorat
 def _get_fields(cls: Any, fields: dict, data: dict) -> list[ShiftField]:
     shift_fields: list[ShiftField] = []
 
-    # Get all annotated fields
-    annotated = get_type_hints(cls)
+    # Get all annotated fields - use try because forward references break get_type_hints
+    try:
+        annotated = get_type_hints(cls)
+    except NameError:
+        annotated = cls.__annotations__.copy() if hasattr(cls, "__annotations__") else {}
+
     for field_name, field_type in annotated.items():
         # Get default value
         try:
@@ -1002,10 +1102,12 @@ def _get_fields(cls: Any, fields: dict, data: dict) -> list[ShiftField]:
     return shift_fields
 
 def _get_updated_fields(fields: list[ShiftField], data: dict) -> list[ShiftField]:
-    # For each field, update val from data if exists
+    # For each field, update val from data if exists, else set to default
     for field in fields:
         if field.name in data:
             field.val = data[field.name]
+        else:
+            field.val = field.default
     return fields
 
 # noinspection PyTypeChecker

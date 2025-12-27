@@ -198,6 +198,7 @@ def test_tuple():
 def test_callable():
     class Test(Shift):
         val: Callable[[int], str]
+    @staticmethod
     def func(x: int) -> str: return str(x)
 
     test = Test(val=func)
@@ -210,12 +211,14 @@ def test_callable():
     with pytest.raises(ShiftError):
         _ = Test(**{"val": InvalidType})
 
+    @staticmethod
     def func(y: str) -> str: return y
     with pytest.raises(ShiftError):
         _ = Test(val=func)
     with pytest.raises(ShiftError):
         _ = Test(**{"val": func})
 
+    @staticmethod
     def func(x: int) -> int: return x
     with pytest.raises(ShiftError):
         _ = Test(val=func)
@@ -297,7 +300,7 @@ def test_literal():
         _ = Test(**{"val": "invalid"})
 
 class TForwardRef(Shift):
-    val: Optional[ForwardRef("Test")]
+    val: Optional[ForwardRef("TForwardRef")]
 
 def test_forwardref():
     test = TForwardRef(val=TForwardRef())
