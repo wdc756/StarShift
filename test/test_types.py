@@ -303,10 +303,11 @@ class TForwardRef(Shift):
     val: Optional[ForwardRef("TForwardRef")]
 
 def test_forwardref():
-    test = TForwardRef(val=TForwardRef())
-    assert test.val == test
-    test = TForwardRef(**{"val": TForwardRef()})
-    assert test.val == test
+    ref = TForwardRef()
+    test = TForwardRef(val=ref)
+    assert test.val == ref
+    test = TForwardRef(**{"val": ref})
+    assert test.val == ref
 
     with pytest.raises(ShiftError):
         _ = TForwardRef(val=InvalidType)

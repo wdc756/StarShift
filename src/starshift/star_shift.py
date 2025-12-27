@@ -7,8 +7,7 @@
 from dataclasses import dataclass
 
 # Check types in validation
-from typing import get_origin, get_args, get_type_hints, Any, Union, ForwardRef, Type, Optional, Literal, TypeAlias, \
-    Callable
+from typing import get_origin, get_args, get_type_hints, Any, Union, ForwardRef, Type, Optional, Literal, TypeAlias
 from collections.abc import Iterable, Callable
 
 # Evaluate forward references and check function signatures
@@ -1050,6 +1049,12 @@ def get_field_decorators(cls: Any, fields: dict) -> dict[str, list[_Any_Decorato
     # Return decorators dict
     return dct
 
+def get_val_fields(instance: Any, fields: list[ShiftField]) -> list[ShiftField]:
+    for field in fields:
+        if hasattr(instance, field.name):
+            field.val = getattr(instance, field.name)
+    return fields
+
 def get_fields(cls: Any, fields: dict, data: dict) -> list[ShiftField]:
     shift_fields: list[ShiftField] = []
 
@@ -1242,6 +1247,9 @@ class Shift:
         if info is None:
             info = get_shift_info(self.__class__, self, {})
 
+        # Get fields with current values
+        info.fields = get_val_fields(self, info.fields)
+
         # Run repr process
         return _repr(info)
 
@@ -1249,6 +1257,9 @@ class Shift:
         # Get shift info if not provided
         if info is None:
             info = get_shift_info(self.__class__, self, {})
+
+        # Get fields with current values
+        info.fields = get_val_fields(self, info.fields)
 
         # Run serialization process
         return _serialize(info)

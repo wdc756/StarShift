@@ -9,11 +9,14 @@ InvalidType = object()
 
 def run():
     class Test(Shift):
-        val: int = 42
+        val: int
 
-    test = Test()
-    test.transform(**{"val": 81})
+        @shift_repr('val')
+        def repr_val(self, val):
+            return repr(val + 1)
 
+    test = Test(val=42)
+    assert repr(test) == "Test(val=43)"
 
 if __name__ == '__main__':
     run()

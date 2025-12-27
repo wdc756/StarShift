@@ -53,8 +53,8 @@ def test_shift_transform():
         val: int = 42
 
     test = Test()
+    info = get_shift_info(Test, test, {})
     test.transform(**{"val": 81})
-    info = get_shift_info(test.__class__, test, {})
     val_field = None
     for field in info.fields:
         if field.name == "val":
@@ -82,17 +82,21 @@ def test_shift_set():
 
 def test_shift_repr():
     class Test(Shift):
-        val: int
+        val: int = 42
 
-    test = Test(val=42)
-    assert repr(test) == "Test(val=42)"
+    test = Test(val=81)
+    assert repr(test) == "Test(val=81)"
+    test = Test()
+    assert repr(test) == "Test()"
 
 def test_shift_serialize():
     class Test(Shift):
-        val: int
+        val: int = 42
 
-    test = Test(val=42)
-    assert test.serialize() == {"val": 42}
+    test = Test(val=81)
+    assert test.serialize() == {"val": 81}
+    test = Test()
+    assert test.serialize() == {}
 
 def test_pre_init():
     class Test(Shift):
@@ -135,4 +139,3 @@ def test_new_shift_method():
 
     test = Test(val=42)
     assert str(test) == "42"
-
