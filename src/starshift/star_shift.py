@@ -397,6 +397,9 @@ def _shift_base_type_validator(instance: Any, field: ShiftField, info: ShiftInfo
     except Exception:
         return False
 
+def _shift_any_type_validator(instance: Any, field: ShiftField, info: ShiftInfo) -> bool:
+    return True
+
 def _shift_one_of_type_validator(instance: Any, field: ShiftField, info: ShiftInfo) -> bool:
     args = get_args(field.typ)
 
@@ -598,6 +601,9 @@ _missing_shift_type = ShiftType(_shift_type_transformer,
 _base_shift_type = ShiftType(_shift_type_transformer,
                              _shift_base_type_validator, _shift_type_setter,
                              _shift_type_repr, _shift_base_type_serializer)
+_any_shift_type = ShiftType(_shift_type_transformer,
+                            _shift_any_type_validator, _shift_type_setter,
+                            _shift_type_repr, _shift_base_type_serializer)
 _one_of_shift_type = ShiftType(_shift_type_transformer,
                                _shift_one_of_type_validator, _shift_type_setter,
                                _shift_type_repr, _shift_base_type_serializer)
@@ -627,7 +633,8 @@ _shift_builtin_types: dict[Type, ShiftType] = {
     str: _base_shift_type,
     bytes: _base_shift_type,
     bytearray: _base_shift_type,
-    Any: _base_shift_type,
+
+    Any: _any_shift_type,
 
     list: _all_of_single_shift_type,
     set: _all_of_single_shift_type,

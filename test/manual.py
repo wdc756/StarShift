@@ -1,3 +1,4 @@
+from typing import Any
 from starshift import *
 
 
@@ -8,12 +9,10 @@ InvalidType = object()
 
 def run():
     class Test(Shift):
-        val: int
+        val: Any
 
     test = Test(val=42)
-    print(test.val)
-    test = Test(val=81)
-    print(test.val)
+    assert test.val == 42
 
 if __name__ == '__main__':
     run()
