@@ -7,7 +7,7 @@
 from dataclasses import dataclass
 
 # Check types in validation
-from typing import get_args, get_type_hints, Any, Union, ForwardRef, Type, Callable, Optional, Literal, TypeAlias
+from typing import get_origin, get_args, get_type_hints, Any, Union, ForwardRef, Type, Callable, Optional, Literal, TypeAlias
 
 # Evaluate forward references and check function signatures
 import inspect
@@ -303,6 +303,11 @@ def get_shift_type(typ: Any) -> ShiftType | None:
     # If in types, return the type
     if typ in _shift_types:
         return _shift_types[typ]
+
+    # If origin in types, return the type
+    origin = get_origin(typ)
+    if origin in _shift_types:
+        return _shift_types[origin]
 
     # If type is a Shift subclass, return shift type
     try:
