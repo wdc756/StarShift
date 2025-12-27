@@ -7,7 +7,8 @@
 from dataclasses import dataclass
 
 # Check types in validation
-from typing import get_origin, get_args, get_type_hints, Any, Union, ForwardRef, Type, Optional, Literal, TypeAlias
+from typing import get_origin, get_args, get_type_hints, Any, Union, ForwardRef, Type, Optional, Literal, TypeAlias, \
+    Callable
 from collections.abc import Iterable, Callable
 
 # Evaluate forward references and check function signatures
@@ -1281,6 +1282,10 @@ class Shift:
 ## Shift Types
 ############################################################
 
+def get_shift_type_registry() -> dict[Type, ShiftType]:
+    """Returns a copy of the shift type registry"""
+    return _shift_types.copy()
+
 def register_shift_type(typ: Type, shift_type: ShiftType) -> None:
     """Registers a shift type"""
     _shift_types[typ] = shift_type
@@ -1299,6 +1304,10 @@ def clear_shift_types() -> None:
 
 ## Forward Refs
 ############################################################
+
+def get_forward_ref_registry() -> dict[str, Type]:
+    """Returns a copy of the forward ref registry"""
+    return _resolved_forward_refs.copy()
 
 def register_forward_ref(ref: str | ForwardRef, typ: Type) -> None:
     """Registers a forward ref to a resolved type"""
@@ -1323,26 +1332,34 @@ def clear_forward_refs() -> None:
 ## Shift Infos
 ############################################################
 
-def generate_shift_info(cls: Any) -> None:
-    """Generates shift info for a class"""
-    get_shift_info(cls, {})
+def get_model_info_registry() -> dict[Any, ShiftInfo]:
+    """Returns a copy of the model info registry"""
+    return _model_info.copy()
 
-def deregister_shift_info(cls: Any) -> None:
+def generate_shift_info(instance: Any) -> None:
+    """Generates shift info for a class (if one does not already exist)"""
+    get_shift_info(instance.__class__, instance, {})
+
+def deregister_shift_info(instance: Any) -> None:
     """Deregisters shift info for a class"""
-    if cls not in _model_info:
-        raise ShiftError("<module>", f"Class `{cls.__name__}` is not registered")
-    del _model_info[cls]
+    if instance.__class__ not in _model_info:
+        raise ShiftError("<module>", f"Class `{instance.__class__.__name__}` is not registered")
+    del _model_info[instance.__class__]
 
-def clear_shift_info_cache(cls: Any) -> None:
+def clear_shift_info_cache(instance: Any) -> None:
     """Clears the shift info cache for a shift class"""
-    if cls not in _model_info:
-        raise ShiftError("<module>", f"Class `{cls}` is not registered")
-    del _model_info[cls]
+    if instance.__class__ not in _model_info:
+        raise ShiftError("<module>", f"Class `{instance.__class__.__name__}` is not registered")
+    del _model_info[instance.__class__]
 
 
 
 ## Shift Functions
 ############################################################
+
+def get_shift_function_registry() -> dict[Callable[[...], Any], bool]:
+    """Returns a copy of the shift function registry"""
+    return _shift_functions.copy()
 
 def generate_shift_function(func: Callable) -> None:
     """Generates the shift function inspection data for a shift-decorated function"""

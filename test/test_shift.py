@@ -29,7 +29,7 @@ def test_static_vals():
     assert test_1.val == 42
     assert test_2.val == 81
 
-def test_shift_methods():
+def test_shift_has_methods():
     class Test(Shift):
         val: int
 
@@ -45,6 +45,54 @@ def test_shift_methods():
     assert hasattr(test, "__hash__")
     assert hasattr(test, "__copy__")
     assert hasattr(test, "__deepcopy__")
+
+# Note we don't need to test __init_subclass__ or __init__ because those are validated when everything else works
+
+def test_shift_transform():
+    class Test(Shift):
+        val: int = 42
+
+    test = Test()
+    test.transform(**{"val": 81})
+    info = get_shift_info(test.__class__, test, {})
+    val_field = None
+    for field in info.fields:
+        if field.name == "val":
+            val_field = field
+            break
+    assert val_field.val == 81
+    assert test.val == 42
+
+def test_shift_validate():
+    class Test(Shift):
+        val: int = 42
+
+    test = Test()
+    with pytest.raises(ShiftError):
+        test.validate(**{"val": InvalidType})
+    assert test.val == 42
+
+def test_shift_set():
+    class Test(Shift):
+        val: int = 42
+
+    test = Test()
+    test.set(val=81)
+    assert test.val == 81
+
+def test_shift_repr():
+    class Test(Shift):
+        val: int
+
+    test = Test(val=42)
+    assert repr(test) == "Test(val=42)"
+
+def test_shift_serialize():
+    class Test(Shift):
+        val: int
+
+    test = Test(val=42)
+    assert test.serialize() == {"val": 42}
 
 def test_pre_init():
     class Test(Shift):

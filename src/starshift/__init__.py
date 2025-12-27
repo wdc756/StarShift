@@ -18,6 +18,7 @@ from .star_shift import shift_type_transformer, shift_type_validator, shift_type
 from .star_shift import get_shift_config, get_field_decorators, get_fields, get_updated_fields, get_shift_info
 
 # Registers
-from .star_shift import register_shift_type, deregister_shift_type, clear_shift_types
-from .star_shift import register_forward_ref, deregister_forward_ref, clear_forward_refs
-from .star_shift import generate_shift_info, deregister_shift_info, clear_shift_info_cache
+from .star_shift import get_shift_type_registry, register_shift_type, deregister_shift_type, clear_shift_types
+from .star_shift import get_forward_ref_registry, register_forward_ref, deregister_forward_ref, clear_forward_refs
+from .star_shift import get_model_info_registry, generate_shift_info, deregister_shift_info, clear_shift_info_cache
+from .star_shift import get_shift_function_registry, generate_shift_function, deregister_shift_function, clear_shift_function_cache
