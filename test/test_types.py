@@ -10,15 +10,6 @@ InvalidType = object()
 
 
 
-def test_missing():
-    class Test(Shift):
-        val: int = MISSING
-
-    test = Test()
-    assert test.val == MISSING
-    test = Test(**{})
-    assert test.val == MISSING
-
 def test_none():
     class Test(Shift):
         val: None

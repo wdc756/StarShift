@@ -620,7 +620,7 @@ _forward_ref_shift_type = ShiftType(_shift_forward_ref_type_transformer,
 _shift_builtin_types: dict[Type, ShiftType] = {
     MISSING: _missing_shift_type,
 
-    None: _base_shift_type,
+    type(None): _base_shift_type,
     int: _base_shift_type,
     bool: _base_shift_type,
     float: _base_shift_type,
@@ -1049,7 +1049,7 @@ def _get_shift_info(cls: Any, data: dict) -> ShiftInfo:
 ## Classes
 ############################################################
 
-class Shift():
+class Shift:
     """Base class for all shift models"""
 
     def __init_subclass__(cls):
@@ -1066,7 +1066,7 @@ class Shift():
             self.__fields__["__pre_init__"](self, info)
 
         # Run transform, validation, and set processes
-        self.validate(info) # Runs transformer and handles errors internally
+        self.validate(info) # Runs transform
         self.set(info)
 
         # If cls has __post_init__(), call
@@ -1109,6 +1109,11 @@ class Shift():
 
         # Run set process
         _set(info)
+        if len(info.errors):
+            errors = []
+            for e in info.errors:
+                errors.append(str(e))
+            raise ShiftError(info.model_name, f"Set failed: {errors}")
 
     @classmethod
     def __repr__(cls, info: ShiftInfo=None) -> str:

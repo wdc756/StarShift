@@ -4,12 +4,12 @@ from starshift import *
 
 def run():
     class Test(Shift):
-        val: int = MISSING
+        val: None
 
-    test = Test()
-    assert test.val == MISSING
-    test = Test(**{})
-    assert test.val == MISSING
+    test = Test(val=None)
+    assert test.val is None
+    test = Test(**{"val": None})
+    assert test.val is None
 
 if __name__ == '__main__':
     run()
