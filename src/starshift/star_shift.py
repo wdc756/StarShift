@@ -149,9 +149,7 @@ def shift_validator(*fields: str, pre: bool=False, skip_when_pre: bool=True) -> 
 
 # noinspection PyTypeChecker
 def shift_setter(*fields: str) -> Callable[[_Setter], _Setter]:
-    """Decorator to mark a function as a shift setter
-
-    The double any is so we can pass in `self`"""
+    """Decorator to mark a function as a shift setter"""
 
     def decorator(func):
         func.__shift_setter_for__ = fields
