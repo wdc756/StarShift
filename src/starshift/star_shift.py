@@ -308,7 +308,7 @@ def get_shift_type(typ: Any) -> ShiftType | None:
     try:
         if issubclass(typ, Shift):
             return _shift_types[Shift]
-    except Exception as e:
+    except Exception:
         pass
 
     # Else type is unknown, return None
@@ -663,19 +663,17 @@ class ShiftConfig:
         verbosity (int): Logging level: 0 = silent, 1 = errors, 2 = warnings, 3 = info, 4 = debug; Default: 0
         fail_fast (bool): If True, processing will stop on the first error encountered. Default; False
 
-        //allow_arbitrary_keys (bool): If True, arbitrary keys will be allowed in kwarg constructors; Default: False
-
         include_default_fields_in_serialization (bool): If True, default value fields will be serialized; Default: False
-        //include_private_fields_in_serialization (bool): If True, private fields will be serialized; Default: False
 
     """
     verbosity: int = 0
     fail_fast: bool = False
 
-    #allow_arbitrary_keys: bool = False
+    ignore_arbitrary_keys: bool = False
+    try_coerce_types: bool = False
 
     include_default_fields_in_serialization: bool = False
-    #include_private_fields_in_serialization: bool = False
+    include_private_fields_in_serialization: bool = False
 
 
 
@@ -714,6 +712,7 @@ def _transform_field(field: ShiftField, info: ShiftInfo) -> None:
         field.val = shift_function_wrapper(field, info, info.transformers[field.name])
 
 def _transform(info: ShiftInfo) -> None:
+    # Transform all class fields
     for field in info.fields:
         try:
             _transform_field(field, info)
@@ -940,7 +939,6 @@ def _get_field_decorators(cls: Any, fields: dict) -> dict[str, list[_Any_Decorat
     return dct
 
 def _get_fields(cls: Any, fields: dict, data: dict) -> list[ShiftField]:
-    # Create the return list
     shift_fields: list[ShiftField] = []
 
     # Get all annotated fields
@@ -1051,17 +1049,7 @@ def _get_shift_info(cls: Any, data: dict) -> ShiftInfo:
 ## Classes
 ############################################################
 
-class ShiftMeta(type):
-    """Helper class to handle namespace resolution and forward refs"""
-
-    def __new__(mcls, name, bases, namespace):
-        # Build subclass
-        cls = super().__new__(mcls, name, bases, namespace)
-
-        # Return cls instance for usage elsewhere
-        return cls
-
-class Shift(metaclass=ShiftMeta):
+class Shift():
     """Base class for all shift models"""
 
     def __init_subclass__(cls):

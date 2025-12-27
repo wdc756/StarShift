@@ -10,7 +10,7 @@ from .star_shift import shift_advanced, shift_function_wrapper
 from .star_shift import MISSING, ShiftInfo, ShiftField, ShiftType, get_shift_type
 
 # Shift Classes
-from .star_shift import ShiftMeta, Shift
+from .star_shift import Shift
 
 # Registers
 from .star_shift import register_shift_type, deregister_shift_type, clear_shift_types
