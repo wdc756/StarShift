@@ -47,7 +47,7 @@ def _log(msg: str) -> None:
     if msg and len(msg):
         print(msg)
 
-def _log_verbose(verbosity: int, msg: list[str]):
+def log_verbose(verbosity: int, msg: list[str]):
     # Return if verbosity 0 or msg empty
     if verbosity == 0 or len(msg) == 0:
         return
@@ -332,11 +332,6 @@ def get_shift_type(typ: Any) -> ShiftType | None:
 ### Transformers
 ###############################
 
-def _shift_type_transformer(instance: Any, field: ShiftField, info: ShiftInfo) -> Any:
-    if field.val is MISSING:
-        return field.default if field.default is not MISSING else None
-    return field.val
-
 def _resolve_forward_ref(typ: str | ForwardRef, info: ShiftInfo) -> Type:
     # Convert forward ref to string
     if isinstance(typ, ForwardRef):
@@ -383,7 +378,12 @@ def _shift_forward_ref_type_transformer(instance: Any, field: ShiftField, info: 
     _ = _resolve_forward_ref(field.typ, info)
 
     # Run normal transformer
-    return _shift_type_transformer(instance, field, info)
+    return shift_type_transformer(instance, field, info)
+
+def shift_type_transformer(instance: Any, field: ShiftField, info: ShiftInfo) -> Any:
+    if field.val is MISSING:
+        return field.default if field.default is not MISSING else None
+    return field.val
 
 ### Validators
 ###############################
@@ -429,7 +429,7 @@ def _shift_one_of_type_validator(instance: Any, field: ShiftField, info: ShiftIn
 
     # Try all args until match is found
     for arg in args:
-        if _shift_type_validator(instance, arg, field.val, field, info):
+        if shift_type_validator(instance, arg, field.val, field, info):
             return True
 
     # No matches found
@@ -452,7 +452,7 @@ def _shift_all_of_single_validator(instance: Any, field: ShiftField, info: Shift
 
     # Check all args
     for val in field.val:
-        if not _shift_type_validator(instance, args[0], val, field, info):
+        if not shift_type_validator(instance, args[0], val, field, info):
             return False
 
     # All args matched
@@ -476,7 +476,7 @@ def _shift_all_of_many_validator(instance: Any, field: ShiftField, info: ShiftIn
 
     # Check all val-arg pairs
     for val, arg in zip(field.val, args):
-        if not _shift_type_validator(instance, arg, val, field, info):
+        if not shift_type_validator(instance, arg, val, field, info):
             return False
 
     # All val-arg pairs matched
@@ -495,9 +495,9 @@ def _shift_all_of_pair_validator(instance: Any, field: ShiftField, info: ShiftIn
 
     # Check all keys and vals against args
     for key, val in field.val.items():
-        if not _shift_type_validator(instance, args[0], key, field, info):
+        if not shift_type_validator(instance, args[0], key, field, info):
             return False
-        if len(args) > 1 and not _shift_type_validator(instance, args[1], val, field, info):
+        if len(args) > 1 and not shift_type_validator(instance, args[1], val, field, info):
             return False
 
     # All key-val-arg pairs matched
@@ -590,17 +590,17 @@ def _shift_forward_ref_type_validator(instance: Any, field: ShiftField, info: Sh
     # Check cache first
     if field.typ in _resolved_forward_refs:
         resolved = _resolved_forward_refs[field.typ]
-        return _shift_type_validator(instance, resolved, field.val, field, info)
+        return shift_type_validator(instance, resolved, field.val, field, info)
 
     # Resolve the forward ref
     try:
         resolved = _resolve_forward_ref(field.typ, info)
         _resolved_forward_refs[field.typ] = resolved
-        return _shift_type_validator(instance, resolved, field.val, field, info)
+        return shift_type_validator(instance, resolved, field.val, field, info)
     except Exception as e:
         raise ShiftError(info.model_name, f"Could not resolve forward reference for {field.name}: {e}")
 
-def _shift_type_validator(instance: Any, typ: Any, val: Any, field: ShiftField, info: ShiftInfo) -> bool:
+def shift_type_validator(instance: Any, typ: Any, val: Any, field: ShiftField, info: ShiftInfo) -> bool:
     # Get shift type
     shift_typ = get_shift_type(typ)
 
@@ -618,7 +618,7 @@ def _shift_type_validator(instance: Any, typ: Any, val: Any, field: ShiftField, 
 ### Setters
 ###############################
 
-def _shift_type_setter(instance: Any, field: ShiftField, info: ShiftInfo) -> None:
+def shift_type_setter(instance: Any, field: ShiftField, info: ShiftInfo) -> None:
     try:
         setattr(info.instance, field.name, field.val)
     except Exception as e:
@@ -627,7 +627,7 @@ def _shift_type_setter(instance: Any, field: ShiftField, info: ShiftInfo) -> Non
 ### Reprs
 ###############################
 
-def _shift_type_repr(instance: Any, field: ShiftField, info: ShiftInfo) -> str:
+def shift_type_repr(instance: Any, field: ShiftField, info: ShiftInfo) -> str:
     if field.val == field.default and not info.shift_config.include_default_fields_in_serialization:
         return ""
     return repr(field.val)
@@ -649,7 +649,7 @@ def _shift_all_of_serializer(instance: Any, field: ShiftField, info: ShiftInfo) 
 
     vals = []
     for val in field.val:
-        vals.append(_shift_type_serializer(instance, type(val), val, field, info))
+        vals.append(shift_type_serializer(instance, type(val), val, field, info))
     return vals
 
 def _shift_all_of_pair_serializer(instance: Any, field: ShiftField, info: ShiftInfo) -> dict[str, Any] | None:
@@ -658,7 +658,7 @@ def _shift_all_of_pair_serializer(instance: Any, field: ShiftField, info: ShiftI
 
     vals = {}
     for key, val in field.val.items():
-        vals[key] = _shift_type_serializer(instance, type(val), val, field, info)
+        vals[key] = shift_type_serializer(instance, type(val), val, field, info)
     return vals
 
 def _shift_shift_type_serializer(instance: Any, field: ShiftField, info: ShiftInfo) -> dict[str, Any] | None:
@@ -671,9 +671,9 @@ def _shift_forward_ref_type_serializer(instance: Any, field: ShiftField, info: S
     if field.val == field.default and not info.shift_config.include_default_fields_in_serialization:
         return None
 
-    return _shift_type_serializer(instance, field.typ, field.val, field, info)
+    return shift_type_serializer(instance, field.typ, field.val, field, info)
 
-def _shift_type_serializer(instance: Any, typ: Any, val: Any, field: ShiftField, info: ShiftInfo) -> Any:
+def shift_type_serializer(instance: Any, typ: Any, val: Any, field: ShiftField, info: ShiftInfo) -> Any:
     # Get shift type
     shift_typ = get_shift_type(field.typ)
 
@@ -688,39 +688,39 @@ def _shift_type_serializer(instance: Any, typ: Any, val: Any, field: ShiftField,
 ## Builtin Types
 ############################################################
 
-_missing_shift_type = ShiftType(_shift_type_transformer,
-                                _shift_missing_type_validator, _shift_type_setter,
-                                _shift_type_repr, _shift_missing_type_serializer)
-_base_shift_type = ShiftType(_shift_type_transformer,
-                             _shift_base_type_validator, _shift_type_setter,
-                             _shift_type_repr, _shift_base_type_serializer)
-_any_shift_type = ShiftType(_shift_type_transformer,
-                            _shift_any_type_validator, _shift_type_setter,
-                            _shift_type_repr, _shift_base_type_serializer)
-_literal_shift_type = ShiftType(_shift_type_transformer,
-                                _shift_literal_type_validator, _shift_type_setter,
-                                _shift_type_repr, _shift_base_type_serializer)
-_one_of_shift_type = ShiftType(_shift_type_transformer,
-                               _shift_one_of_type_validator, _shift_type_setter,
-                               _shift_type_repr, _shift_base_type_serializer)
-_all_of_single_shift_type = ShiftType(_shift_type_transformer,
-                                      _shift_all_of_single_validator, _shift_type_setter,
-                                      _shift_type_repr, _shift_all_of_serializer)
-_all_of_many_shift_type = ShiftType(_shift_type_transformer,
-                                    _shift_all_of_many_validator, _shift_type_setter,
-                                    _shift_type_repr, _shift_all_of_serializer)
-_all_of_pair_shift_type = ShiftType(_shift_type_transformer,
-                                    _shift_all_of_pair_validator, _shift_type_setter,
-                                    _shift_type_repr, _shift_all_of_pair_serializer)
-_shift_callable_shift_type = ShiftType(_shift_type_transformer,
-                                       _shift_callable_validator, _shift_type_setter,
-                                       _shift_type_repr, _shift_base_type_serializer)
-_shift_shift_type = ShiftType(_shift_type_transformer,
-                              _shift_shift_type_validator, _shift_type_setter,
-                              _shift_type_repr, _shift_shift_type_serializer)
+_missing_shift_type = ShiftType(shift_type_transformer,
+                                _shift_missing_type_validator, shift_type_setter,
+                                shift_type_repr, _shift_missing_type_serializer)
+_base_shift_type = ShiftType(shift_type_transformer,
+                             _shift_base_type_validator, shift_type_setter,
+                             shift_type_repr, _shift_base_type_serializer)
+_any_shift_type = ShiftType(shift_type_transformer,
+                            _shift_any_type_validator, shift_type_setter,
+                            shift_type_repr, _shift_base_type_serializer)
+_literal_shift_type = ShiftType(shift_type_transformer,
+                                _shift_literal_type_validator, shift_type_setter,
+                                shift_type_repr, _shift_base_type_serializer)
+_one_of_shift_type = ShiftType(shift_type_transformer,
+                               _shift_one_of_type_validator, shift_type_setter,
+                               shift_type_repr, _shift_base_type_serializer)
+_all_of_single_shift_type = ShiftType(shift_type_transformer,
+                                      _shift_all_of_single_validator, shift_type_setter,
+                                      shift_type_repr, _shift_all_of_serializer)
+_all_of_many_shift_type = ShiftType(shift_type_transformer,
+                                    _shift_all_of_many_validator, shift_type_setter,
+                                    shift_type_repr, _shift_all_of_serializer)
+_all_of_pair_shift_type = ShiftType(shift_type_transformer,
+                                    _shift_all_of_pair_validator, shift_type_setter,
+                                    shift_type_repr, _shift_all_of_pair_serializer)
+_shift_callable_shift_type = ShiftType(shift_type_transformer,
+                                       _shift_callable_validator, shift_type_setter,
+                                       shift_type_repr, _shift_base_type_serializer)
+_shift_shift_type = ShiftType(shift_type_transformer,
+                              _shift_shift_type_validator, shift_type_setter,
+                              shift_type_repr, _shift_shift_type_serializer)
 _forward_ref_shift_type = ShiftType(_shift_forward_ref_type_transformer,
-                                    _shift_forward_ref_type_validator, _shift_type_setter,
-                                    _shift_type_repr, _shift_forward_ref_type_serializer)
+                                    _shift_forward_ref_type_validator, shift_type_setter,
+                                    shift_type_repr, _shift_forward_ref_type_serializer)
 
 _shift_builtin_types: dict[Type, ShiftType] = {
     MISSING: _missing_shift_type,
@@ -768,13 +768,18 @@ class ShiftConfig:
     """Configuration for shift phases
 
     Attributes:
-        verbosity (int): Logging level: 0 = silent, 1 = errors, 2 = warnings, 3 = info, 4 = debug; Default: 0
+        verbosity (int): Logging level: 0 = silent, 1 = error, 2 = warnings, 3 = info, 4 = debug; Default: 0
         fail_fast (bool): If True, processing will stop on the first error encountered. Default; False
+        do_processing (bool): If True, on init all fields will be transformed, validated, and set. If False, you must manually set everything (use __post_init__); Default: True
 
-        include_default_fields_in_serialization (bool): If True, default value fields will be serialized; Default: False
+        ignore_arbitrary_keys (bool): If True, arbitrary keys in dicts will be ignored. If False, all arbitrary keys will throw an error; Default: False
+        try_coerce_types (bool): If True, Shift will attempt to coerce types where possible. If False, all types must match exactly; Default: False
 
+        include_default_fields_in_serialization (bool): If True, default value fields will be serialized (used in repr too); Default: False
+        include_private_fields_in_serialization (bool): If True, private fields will be serialized (used in repr too); Default: False
     """
     verbosity: int = 0
+    do_processing: bool = True
     fail_fast: bool = False
 
     ignore_arbitrary_keys: bool = False
@@ -954,7 +959,7 @@ def _serialize(info: ShiftInfo) -> dict[str, Any]:
 ## Class Init Functions
 ############################################################
 
-def _get_shift_config(cls, fields: dict) -> ShiftConfig | None:
+def get_shift_config(cls, fields: dict) -> ShiftConfig | None:
     # Get shift_config from cls if it exists
     shift_config = fields.get("__shift_config__")
     if shift_config and not isinstance(shift_config, ShiftConfig):
@@ -962,14 +967,14 @@ def _get_shift_config(cls, fields: dict) -> ShiftConfig | None:
 
     # If no shift config provided, use global default
     if shift_config:
-        _log_verbose(shift_config.verbosity, ["", "__shift_config__ set"])
+        log_verbose(shift_config.verbosity, ["", "__shift_config__ set"])
     else:
         shift_config = DEFAULT_SHIFT_CONFIG
 
-    _log_verbose(shift_config.verbosity, ["", "", f"shift_config: {shift_config}"])
+    log_verbose(shift_config.verbosity, ["", "", f"shift_config: {shift_config}"])
     return shift_config
 
-def _get_field_decorators(cls: Any, fields: dict) -> dict[str, list[_Any_Decorator] | list[str]]:
+def get_field_decorators(cls: Any, fields: dict) -> dict[str, list[_Any_Decorator] | list[str]]:
     # Create the return dict structure
     dct = {
         "pre_transformer_skips": [],
@@ -1046,7 +1051,7 @@ def _get_field_decorators(cls: Any, fields: dict) -> dict[str, list[_Any_Decorat
     # Return decorators dict
     return dct
 
-def _get_fields(cls: Any, fields: dict, data: dict) -> list[ShiftField]:
+def get_fields(cls: Any, fields: dict, data: dict) -> list[ShiftField]:
     shift_fields: list[ShiftField] = []
 
     # Get all annotated fields - use try because forward references break get_type_hints
@@ -1101,7 +1106,7 @@ def _get_fields(cls: Any, fields: dict, data: dict) -> list[ShiftField]:
     # Return shift_fields list
     return shift_fields
 
-def _get_updated_fields(fields: list[ShiftField], data: dict) -> list[ShiftField]:
+def get_updated_fields(fields: list[ShiftField], data: dict) -> list[ShiftField]:
     # For each field, update val from data if exists, else set to default
     for field in fields:
         if field.name in data:
@@ -1111,16 +1116,16 @@ def _get_updated_fields(fields: list[ShiftField], data: dict) -> list[ShiftField
     return fields
 
 # noinspection PyTypeChecker
-def _get_shift_info(cls: Any, data: dict) -> ShiftInfo:
+def get_shift_info(cls: Any, instance: Any, data: dict) -> ShiftInfo:
     # If cls is in model_info, return copy so non-persistent data is not kept
     if cls in _model_info:
         cached_info = _model_info[cls]
         # Build new copied info
         info = ShiftInfo(
-            instance=cls,
+            instance=instance,
             model_name=cached_info.model_name,
             shift_config=cached_info.shift_config,
-            fields=_get_updated_fields(cached_info.fields, data), # This always needs to be updated with the new data
+            fields=get_updated_fields(cached_info.fields, data), # This always needs to be updated with the new data
             pre_transformer_skips=cached_info.pre_transformer_skips,
             pre_transformers=cached_info.pre_transformers,
             transformers=cached_info.transformers,
@@ -1139,12 +1144,12 @@ def _get_shift_info(cls: Any, data: dict) -> ShiftInfo:
     ## Get all fields (annotated, non-annotated, functions, etc
     fields = getattr(cls, "__dict__", {}).copy()
     ## Get config, shift_fields, and decorators
-    shift_config = _get_shift_config(cls, fields)
-    shift_fields = _get_fields(cls, fields, data)
-    decorators = _get_field_decorators(cls, fields)
+    shift_config = get_shift_config(cls, fields)
+    shift_fields = get_fields(cls, fields, data)
+    decorators = get_field_decorators(cls, fields)
     ## Build info class
     info = ShiftInfo(
-        instance=cls,
+        instance=instance,
         model_name=cls.__name__,
         shift_config=shift_config,
         fields=shift_fields,
@@ -1180,7 +1185,7 @@ class Shift:
 
     def __init__(self, **data):
         # Get shift info
-        info = _get_shift_info(self.__class__, data)
+        info = get_shift_info(self.__class__, self, data)
 
         # If cls has __pre_init__(), call
         if "__pre_init__" in self.__fields__:
@@ -1196,23 +1201,21 @@ class Shift:
 
 
 
-    @classmethod
-    def transform(cls, info: ShiftInfo=None, **data) -> None:
+    def transform(self, info: ShiftInfo=None, **data) -> None:
         # Get shift info if not provided
         if info is None:
-            info = _get_shift_info(cls, data)
+            info = get_shift_info(self.__class__, self, data)
 
         # Run transform process
         _transform(info)
 
-    @classmethod
-    def validate(cls, info: ShiftInfo=None, **data) -> bool:
+    def validate(self, info: ShiftInfo=None, **data) -> bool:
         # Get shift info if not provided
         if info is None:
-            info = _get_shift_info(cls, data)
+            info = get_shift_info(self.__class__, self, data)
 
         # Run transform process
-        cls.transform(info, **data)
+        self.transform(info, **data)
 
         # Run validation, throw if fail
         if not _validate(info):
@@ -1222,11 +1225,10 @@ class Shift:
             raise ShiftError(info.model_name, f"Validation failed: {errors}")
         return True
 
-    @classmethod
-    def set(cls, info: ShiftInfo=None, **data) -> None:
+    def set(self, info: ShiftInfo=None, **data) -> None:
         # Get shift info if not provided
         if info is None:
-            info = _get_shift_info(cls, data)
+            info = get_shift_info(self.__class__, self, data)
 
         # Run set process
         _set(info)
@@ -1236,47 +1238,40 @@ class Shift:
                 errors.append(str(e))
             raise ShiftError(info.model_name, f"Set failed: {errors}")
 
-    @classmethod
-    def __repr__(cls, info: ShiftInfo=None) -> str:
+    def __repr__(self, info: ShiftInfo=None) -> str:
         # Get shift info if not provided
         if info is None:
-            info = _get_shift_info(cls, {})
+            info = get_shift_info(self.__class__, self, {})
 
         # Run repr process
         return _repr(info)
 
-    @classmethod
-    def serialize(cls, info: ShiftInfo=None) -> dict[str, Any]:
+    def serialize(self, info: ShiftInfo=None) -> dict[str, Any]:
         # Get shift info if not provided
         if info is None:
-            info = _get_shift_info(cls, {})
+            info = get_shift_info(self.__class__, self, {})
 
         # Run serialization process
         return _serialize(info)
 
 
 
-    @classmethod
-    def __eq__(cls, other: Any) -> bool:
-        if not isinstance(other, cls):
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, self.__class__):
             return False
-        return cls.serialize() == other.serialize()
+        return self.serialize() == other.serialize()
 
-    @classmethod
-    def __ne__(cls, other: Any) -> bool:
-        return not cls == other
+    def __ne__(self, other: Any) -> bool:
+        return not self == other
 
-    @classmethod
-    def __hash__(cls) -> int:
-        return hash(cls.serialize())
+    def __hash__(self) -> int:
+        return hash(self.serialize())
 
-    @classmethod
-    def __copy__(cls) -> Any:
-        return type(cls)(**cls.serialize())
+    def __copy__(self) -> Any:
+        return type(self)(**self.serialize())
 
-    @classmethod
-    def __deepcopy__(cls, memo: dict[int, Any]) -> Any:
-        return type(cls)(**cls.serialize())
+    def __deepcopy__(self, memo: dict[int, Any]) -> Any:
+        return type(self)(**self.serialize())
 
 
 
@@ -1332,7 +1327,7 @@ def clear_forward_refs() -> None:
 
 def generate_shift_info(cls: Any) -> None:
     """Generates shift info for a class"""
-    _get_shift_info(cls, {})
+    get_shift_info(cls, {})
 
 def deregister_shift_info(cls: Any) -> None:
     """Deregisters shift info for a class"""

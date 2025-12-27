@@ -7,12 +7,19 @@ InvalidType = object()
 
 
 
-class TForwardRef(Shift):
-    val: Optional[ForwardRef("TForwardRef")]
-
 def run():
-    test = TForwardRef(val=TForwardRef())
-    assert test.val == test
+    class Test(Shift):
+        val: int
+
+        def __eq__(self, other):
+            return self.val != other.val
+
+    test_1 = Test(val=42)
+    print(test_1.val)
+    test_2 = Test(val=81)
+    print(test_1.val)
+    print(test_2.val)
+    assert test_1 == test_2
 
 if __name__ == '__main__':
     run()

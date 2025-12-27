@@ -12,6 +12,11 @@ from .star_shift import MISSING, ShiftInfo, ShiftField, ShiftType, get_shift_typ
 # Shift Classes
 from .star_shift import Shift
 
+# Shift Utility Functions
+from .star_shift import log_verbose, get_shift_type
+from .star_shift import shift_type_transformer, shift_type_validator, shift_type_setter, shift_type_repr, shift_type_serializer
+from .star_shift import get_shift_config, get_field_decorators, get_fields, get_updated_fields, get_shift_info
+
 # Registers
 from .star_shift import register_shift_type, deregister_shift_type, clear_shift_types
 from .star_shift import register_forward_ref, deregister_forward_ref, clear_forward_refs
