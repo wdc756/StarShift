@@ -989,6 +989,13 @@ def _get_fields(cls: Any, fields: dict, data: dict) -> list[ShiftField]:
     # Return shift_fields list
     return shift_fields
 
+def _get_updated_fields(fields: list[ShiftField], data: dict) -> list[ShiftField]:
+    # For each field, update val from data if exists
+    for field in fields:
+        if field.name in data:
+            field.val = data[field.name]
+    return fields
+
 # noinspection PyTypeChecker
 def _get_shift_info(cls: Any, data: dict) -> ShiftInfo:
     # If cls is in model_info, return copy so non-persistent data is not kept
@@ -999,7 +1006,7 @@ def _get_shift_info(cls: Any, data: dict) -> ShiftInfo:
             instance=cls,
             model_name=cached_info.model_name,
             shift_config=cached_info.shift_config,
-            fields=cached_info.fields,
+            fields=_get_updated_fields(cached_info.fields, data), # This always needs to be updated with the new data
             pre_transformer_skips=cached_info.pre_transformer_skips,
             pre_transformers=cached_info.pre_transformers,
             transformers=cached_info.transformers,
