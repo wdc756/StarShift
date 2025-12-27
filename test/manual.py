@@ -3,13 +3,13 @@ from starshift import *
 
 
 def run():
-    class A(Shift):
-        ref: "B"
+    class Test(Shift):
+        val: int = MISSING
 
-    class B(Shift):
-        val: int
-
-    test = A(ref=B(val=10))
+    test = Test()
+    assert test.val == MISSING
+    test = Test(**{})
+    assert test.val == MISSING
 
 if __name__ == '__main__':
     run()
