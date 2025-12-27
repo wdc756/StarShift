@@ -9,17 +9,11 @@ InvalidType = object()
 
 def run():
     class Test(Shift):
-        val: int
+        val: int = 42
 
-        def __eq__(self, other):
-            return self.val != other.val
+    test = Test()
+    test.transform(**{"val": 81})
 
-    test_1 = Test(val=42)
-    print(test_1.val)
-    test_2 = Test(val=81)
-    print(test_1.val)
-    print(test_2.val)
-    assert test_1 == test_2
 
 if __name__ == '__main__':
     run()
