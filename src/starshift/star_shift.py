@@ -37,7 +37,7 @@ _shift_functions: dict[Callable, bool] = {}
 
 
 
-# Logging
+# Logging & Errors
 ########################################################################################################################
 
 
@@ -63,22 +63,10 @@ def log_verbose(verbosity: int, msg: list[str]):
         _log(msg[verbosity - 1])
         return
 
-
-
-# Errors
-########################################################################################################################
-
-
-
 class ShiftError(Exception):
     """Base class for all starshift errors"""
     def __init__(self, model_name: str, msg: str):
         super().__init__(f"StarShift: {model_name}: {msg}")
-
-class ShiftConfigError(ShiftError):
-    """Raised when an invalid ShiftConfig setting is encountered"""
-    def __init__(self, model_name: str, invalid_config: str, invalid_config_val: Any, msg: str):
-        super().__init__(model_name, f"Invalid ShiftConfig: `{invalid_config}` was set to `{invalid_config_val}`, but {msg}")
 
 
 
@@ -769,22 +757,50 @@ class ShiftConfig:
         verbosity (int): Logging level: 0 = silent, 1 = error, 2 = warnings, 3 = info, 4 = debug; Default: 0
         fail_fast (bool): If True, processing will stop on the first error encountered. Default; False
         do_processing (bool): If True, on init all fields will be transformed, validated, and set. If False, you must manually set everything (use __post_init__); Default: True
-
-        ignore_arbitrary_keys (bool): If True, arbitrary keys in dicts will be ignored. If False, all arbitrary keys will throw an error; Default: False
         try_coerce_types (bool): If True, Shift will attempt to coerce types where possible. If False, all types must match exactly; Default: False
-
         include_default_fields_in_serialization (bool): If True, default value fields will be serialized (used in repr too); Default: False
         include_private_fields_in_serialization (bool): If True, private fields will be serialized (used in repr too); Default: False
     """
     verbosity: int = 0
     do_processing: bool = True
     fail_fast: bool = False
-
-    ignore_arbitrary_keys: bool = False
     try_coerce_types: bool = False
-
     include_default_fields_in_serialization: bool = False
     include_private_fields_in_serialization: bool = False
+
+
+
+    def __repr__(self) -> str:
+        result: list[str] = []
+        if self.verbosity != 0:
+            result.append(f"verbosity={self.verbosity}")
+        if not self.do_processing:
+            result.append(f"do_processing={self.do_processing}")
+        if self.fail_fast:
+            result.append(f"fail_fast={self.fail_fast}")
+        if self.try_coerce_types:
+            result.append(f"try_coerce_types={self.try_coerce_types}")
+        if self.include_default_fields_in_serialization:
+            result.append(f"include_default_fields_in_serialization={self.include_default_fields_in_serialization}")
+        if self.include_private_fields_in_serialization:
+            result.append(f"include_private_fields_in_serialization={self.include_private_fields_in_serialization}")
+        return f"ShiftConfig({', '.join(result)})"
+
+    def serialize(self) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        if self.verbosity != 0:
+            result['verbosity'] = self.verbosity
+        if not self.do_processing:
+            result['do_processing'] = self.do_processing
+        if self.fail_fast:
+            result['fail_fast'] = self.fail_fast
+        if self.try_coerce_types:
+            result['try_coerce_types'] = self.try_coerce_types
+        if self.include_default_fields_in_serialization:
+            result['include_default_fields_in_serialization'] = self.include_default_fields_in_serialization
+        if self.include_private_fields_in_serialization:
+            result['include_private_fields_in_serialization'] = self.include_private_fields_in_serialization
+        return result
 
 
 
@@ -905,6 +921,10 @@ def _repr_field(field: ShiftField, info: ShiftInfo) -> str:
     if field.name in info.reprs:
         return shift_function_wrapper(field, info, info.reprs[field.name])
 
+    # If field name is private and config set to exclude, return
+    if field.name.startswith("_") and not info.shift_config.include_private_fields_in_serialization:
+        return ""
+
     # Get shift type
     shift_typ = get_shift_type(field.typ)
     if shift_typ is None:
@@ -919,6 +939,8 @@ def _repr(info: ShiftInfo) -> str:
         r = (_repr_field(field, info))
         if r and len(r):
             res.append(field.name + "=" + r)
+    if info.shift_config.include_private_fields_in_serialization and (info.shift_config != DEFAULT_SHIFT_CONFIG or info.shift_config.include_default_fields_in_serialization):
+        res.append(f"__shift_config__={repr(info.shift_config)}")
     return f"{info.model_name}({', '.join(res)})"
 
 
@@ -926,10 +948,14 @@ def _repr(info: ShiftInfo) -> str:
 ## Serialize
 ############################################################
 
-def _serialize_field(field: ShiftField, info: ShiftInfo) -> dict[str, Any]:
+def _serialize_field(field: ShiftField, info: ShiftInfo) -> dict[str, Any] | None:
     # If field serializer, call
     if field.name in info.serializers:
         return shift_function_wrapper(field, info, info.serializers[field.name])
+
+    # If field name is private and config set to exclude, return
+    if field.name.startswith("_") and not info.shift_config.include_private_fields_in_serialization:
+        return None
 
     # Get shift type
     shift_typ = get_shift_type(field.typ)
@@ -945,6 +971,8 @@ def _serialize(info: ShiftInfo) -> dict[str, Any]:
         res = _serialize_field(field, info)
         if res is not None:
             result[field.name] = res
+    if info.shift_config.include_private_fields_in_serialization and (info.shift_config != DEFAULT_SHIFT_CONFIG or info.shift_config.include_default_fields_in_serialization):
+        result["__shift_config__"] = info.shift_config.serialize()
     return result
 
 
@@ -1182,26 +1210,23 @@ def get_shift_info(cls: Any, instance: Any, data: dict) -> ShiftInfo:
 class Shift:
     """Base class for all shift models"""
 
-    def __init_subclass__(cls):
-        # Get class fields (all vars, annotations, defs, etc)
-        cls.__fields__ = getattr(cls, "__dict__", {}).copy()
-        pass
-
     def __init__(self, **data):
         # Get shift info
         info = get_shift_info(self.__class__, self, data)
 
         # If cls has __pre_init__(), call
-        if "__pre_init__" in self.__fields__:
-            self.__fields__["__pre_init__"](self, info)
+        if "__pre_init__" in self.__class__.__dict__:
+            self.__class__.__dict__["__pre_init__"](self, info)
 
         # Run transform, validation, and set processes
-        self.validate(info) # Runs transform
-        self.set(info)
+        if info.shift_config.do_processing:
+
+            self.validate(info) # Runs transform
+            self.set(info)
 
         # If cls has __post_init__(), call
-        if "__post_init__" in self.__fields__:
-            self.__fields__["__post_init__"](self, info)
+        if "__post_init__" in self.__class__.__dict__:
+            self.__class__.__dict__["__post_init__"](self, info)
 
 
 
@@ -1406,6 +1431,9 @@ def clear_shift_function_cache() -> None:
 
 ## Misc
 ############################################################
+
+def serialize() -> dict[str, Any]:
+    """Try to call instance.serialize() if it exists else error"""
 
 # Register Builtin types
 _shift_types.update(_shift_builtin_types)

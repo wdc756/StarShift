@@ -1,5 +1,5 @@
 # Errors
-from .star_shift import ShiftError, ShiftConfigError
+from .star_shift import ShiftError
 
 # Decorators
 from .star_shift import shift_transformer, shift_validator, shift_setter, shift_repr, shift_serializer
