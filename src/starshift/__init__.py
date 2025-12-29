@@ -7,7 +7,7 @@ from .star_shift import shift_transformer, shift_validator, shift_setter, shift_
 from .star_shift import shift_function_wrapper
 
 # Shift Types
-from .star_shift import MISSING, ShiftInfo, ShiftField, ShiftType, get_shift_type
+from .star_shift import Missing, ShiftInfo, ShiftField, ShiftType, get_shift_type
 
 # Shift Classes
 from .star_shift import Shift

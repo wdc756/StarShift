@@ -206,7 +206,9 @@ def shift_function_wrapper(field: ShiftField, info: ShiftInfo, func: Callable) -
 
 
 # Sentinel object to check for missing values
-MISSING = object()
+class Missing:
+    def __repr__(self):
+        return 'Missing'
 
 @dataclass
 class ShiftInfo:
@@ -251,14 +253,14 @@ class ShiftField:
 
     Attributes:
         name (str): Name of the field
-        typ (Any): Type hint of the field; Default: MISSING
-        val (Any): Value of the field; Default: MISSING
-        default (Any): Default value of the field; Default: MISSING
+        typ (Any): Type hint of the field; Default: _missing
+        val (Any): Value of the field; Default: _missing
+        default (Any): Default value of the field; Default: _missing
     """
     name: str
-    typ: Any = MISSING
-    val: Any = MISSING
-    default: Any = MISSING
+    typ: Any = Missing
+    val: Any = Missing
+    default: Any = Missing
 
 
 
@@ -317,8 +319,8 @@ def _shift_forward_ref_type_transformer(instance: Any, field: ShiftField, info: 
     return shift_type_transformer(instance, field, info)
 
 def shift_type_transformer(instance: Any, field: ShiftField, info: ShiftInfo) -> Any:
-    if field.val is MISSING:
-        return field.default if field.default is not MISSING else None
+    if field.val is Missing:
+        return field.default if field.default is not Missing else None
     return field.val
 
 ### Validators
@@ -327,8 +329,8 @@ def shift_type_transformer(instance: Any, field: ShiftField, info: ShiftInfo) ->
 def _shift_missing_type_validator(instance: Any, field: ShiftField, info: ShiftInfo) -> bool:
     # This function is used for static attributes (non-annotated fields with defaults)
 
-    # If val is MISSING, assume the field is missing, so return False
-    if field.val is MISSING:
+    # If val is _missing, assume the field is missing, so return False
+    if field.val is Missing:
         return False
 
     # Else assume valid (no type hint to compare against)
@@ -677,6 +679,11 @@ def get_shift_type(typ: Any) -> ShiftType | None:
     except Exception:
         pass
 
+    # Get type of object and check if it's in the registry
+    typ = type(typ)
+    if typ in _shift_types:
+        return _shift_types[typ]
+
     # Else type is unknown, return None
     return None
 
@@ -720,7 +727,7 @@ _forward_ref_shift_type = ShiftType(_shift_forward_ref_type_transformer,
                                     shift_type_repr, _shift_forward_ref_type_serializer)
 
 _shift_builtin_types: dict[Type, ShiftType] = {
-    MISSING: _missing_shift_type,
+    Missing: _missing_shift_type,
 
     type(None): _base_shift_type,
     int: _base_shift_type,
@@ -1061,7 +1068,7 @@ def get_field_decorators(cls: Any, fields: dict) -> dict[str, list[_Any_Decorato
 
         # Get value
         try:
-            val = getattr(cls, field_name, MISSING)
+            val = getattr(cls, field_name, Missing)
         except AttributeError:
             continue
 
@@ -1132,17 +1139,17 @@ def get_fields(cls: Any, fields: dict, data: dict, shift_config: ShiftConfig = D
 
         # Get default value
         try:
-            default = getattr(cls, field_name, MISSING)
+            default = getattr(cls, field_name, Missing)
         except AttributeError:
             continue
 
         # Get val from data if exists
-        val = MISSING
+        val = Missing
         if field_name in data:
             val = data[field_name]
 
         # If field is private, has a data-set value, and allow setting is false, throw
-        if field_name.startswith("_") and val is not MISSING and not shift_config.allow_private_field_setting:
+        if field_name.startswith("_") and val is not Missing and not shift_config.allow_private_field_setting:
             raise ShiftError(cls.__name__, f"{field_name} has a set value in data, but allow_private_field_setting is False")
 
         # Add to shift_fields list
@@ -1160,7 +1167,7 @@ def get_fields(cls: Any, fields: dict, data: dict, shift_config: ShiftConfig = D
 
         # Get value
         try:
-            val = getattr(cls, field_name, MISSING)
+            val = getattr(cls, field_name, Missing)
         except AttributeError:
             continue
 
@@ -1174,7 +1181,7 @@ def get_fields(cls: Any, fields: dict, data: dict, shift_config: ShiftConfig = D
             val = data[field_name]
 
             # If field is private, has a data-set value, and allow setting is false, throw
-            if field_name.startswith("_") and val is not MISSING and not shift_config.allow_private_field_setting:
+            if field_name.startswith("_") and val is not Missing and not shift_config.allow_private_field_setting:
                 raise ShiftError(cls.__name__,f"{field_name} has a set value in data, but allow_private_field_setting is False")
 
         # Add to shift_fields list
