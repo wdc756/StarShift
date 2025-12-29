@@ -32,7 +32,6 @@ def test_shift_transformer_advanced():
         val: int
 
         @shift_transformer('val')
-        @shift_advanced
         def transform_val(self, field: ShiftField, info: ShiftInfo):
             return field.val + 1
 
@@ -84,7 +83,6 @@ def test_shift_validator_advanced():
         val: int
 
         @shift_validator('val')
-        @shift_advanced
         def validate_val(self, field: ShiftField, info: ShiftInfo):
             return field.val > 0
 
@@ -99,7 +97,6 @@ def test_shift_validator_pre():
         val: int
 
         @shift_validator('val', pre=True)
-        @shift_advanced
         def validate_val(self, field: ShiftField, info: ShiftInfo):
             for i_field in info.fields:
                 if i_field.name == 'val':
@@ -114,7 +111,6 @@ def test_shift_validator_pre_skip():
         val: int
 
         @shift_validator('val', pre=True, skip_when_pre=True)
-        @shift_advanced
         def validate_val(self, field: ShiftField, info: ShiftInfo):
             for i_field in info.fields:
                 if i_field.name == 'val':
@@ -140,7 +136,6 @@ def test_shift_setter_advanced():
         val: int
 
         @shift_setter('val')
-        @shift_advanced
         def set_val(self, field: ShiftField, info: ShiftInfo):
             setattr(self, field.name, field.val + 1)
 
@@ -163,7 +158,6 @@ def test_shift_repr_advanced():
         val: int
 
         @shift_repr('val')
-        @shift_advanced
         def repr_val(self, field: ShiftField, info: ShiftInfo):
             return repr(field.val + 1)
 
@@ -186,7 +180,6 @@ def test_shift_serializer_advanced():
         val: int
 
         @shift_serializer('val')
-        @shift_advanced
         def serialize_val(self, field: ShiftField, info: ShiftInfo):
             return field.val + 1
 

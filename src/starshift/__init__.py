@@ -3,8 +3,8 @@ from .star_shift import ShiftError
 
 # Decorators
 from .star_shift import shift_transformer, shift_validator, shift_setter, shift_repr, shift_serializer
-## Advanced + Wrapper
-from .star_shift import shift_advanced, shift_function_wrapper
+# Wrapper
+from .star_shift import shift_function_wrapper
 
 # Shift Types
 from .star_shift import MISSING, ShiftInfo, ShiftField, ShiftType, get_shift_type

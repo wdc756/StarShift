@@ -11,7 +11,7 @@ from typing import get_origin, get_args, get_type_hints, Any, Union, ForwardRef,
 from collections.abc import Iterable, Callable
 
 # Evaluate forward references and check function signatures
-import inspect
+import inspect, sys
 
 
 
@@ -164,20 +164,15 @@ def shift_serializer(*fields: str) -> Callable[[_Serializer], _Serializer]:
 
 
 
-## Advanced + Wrapper
+## Wrapper
 ############################################################
-
-def shift_advanced(func: _Any_Decorator) -> _Any_Decorator:
-    """Decorator to mark a function as an advanced shift decorator"""
-    func.__shift_advanced__ = True
-    return func
 
 def shift_function_wrapper(field: ShiftField, info: ShiftInfo, func: Callable) -> Any | None:
     """Wrapper to automatically determine if the function is advanced or not, and call appropriately, returning the result"""
     # Check cache first
     if func in _shift_functions:
         if _shift_functions[func]:
-            return shift_advanced(func)(info.instance, field, info)
+            return func(info.instance, field, info)
         return func(info.instance, field.val)
 
     # Get function signature
@@ -296,7 +291,7 @@ def _resolve_forward_ref(typ: str | ForwardRef, info: ShiftInfo) -> Type:
     # Check module where class is defined
     try:
         cls_type = type(info.instance)
-        module = inspect.getmodule(cls_type.__module__)
+        module = sys.modules.get(cls_type.__module__)
         if module and hasattr(module, typ):
             resolved = getattr(module, typ)
             _resolved_forward_refs[typ] = resolved
@@ -1370,7 +1365,7 @@ class Shift:
         return not self == other
 
     def __hash__(self) -> int:
-        return hash(self.serialize())
+        return hash(tuple(sorted(self.serialize().items())))
 
     def __copy__(self) -> Any:
         return type(self)(**self.serialize())
