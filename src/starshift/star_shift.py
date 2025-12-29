@@ -209,6 +209,8 @@ def shift_function_wrapper(field: ShiftField, info: ShiftInfo, func: Callable) -
 class Missing:
     def __repr__(self):
         return 'Missing'
+    def __bool__(self) -> bool:
+        return False
 
 @dataclass
 class ShiftInfo:
