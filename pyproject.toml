@@ -19,3 +19,9 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+markers = [
+    "stress: marks a test as a stress test",
+    "application: marks a test as a real-world example test"
+]

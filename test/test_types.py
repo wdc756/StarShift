@@ -1,6 +1,4 @@
 import pytest
-from typing import Any, Union, Optional
-
 import sys
 import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
@@ -8,331 +6,337 @@ from starshift.star_shift import *
 
 
 
+InvalidType = object()
+
+@pytest.fixture(autouse=True)
+def reset_starshift():
+    reset_starshift_globals()
+    yield
+    reset_starshift_globals()
+
+
+
 def test_none():
     class Test(Shift):
-        none: None
+        val: None
 
-    with pytest.raises(ShiftValidationError):
-        test = Test(none=None)
+    test = Test(val=None)
+    assert test.val is None
+    test = Test(**{"val": None})
+    assert test.val is None
 
-    with pytest.raises(ShiftValidationError):
-        test = Test(**{"none": None})
-
-def test_bool():
-    class Test(Shift):
-        boolean: bool
-
-    test = Test(boolean=True)
-    assert test.boolean is True
-
-    test = Test(**{"boolean": True})
-    assert test.boolean is True
-
-    with pytest.raises(ShiftValidationError):
-        test = Test(boolean="Invalid type")
-
-    with pytest.raises(ShiftValidationError):
-        test = Test(**{"boolean": "Invalid type"})
+    with pytest.raises(ShiftError):
+        _ = Test(val=InvalidType)
+    with pytest.raises(ShiftError):
+        _ = Test(**{"val": InvalidType})
 
 def test_int():
     class Test(Shift):
-        integer: int
+        val: int
 
-    test = Test(integer=10)
-    assert test.integer == 10
+    test = Test(val=42)
+    assert test.val == 42
+    test = Test(**{"val": 42})
+    assert test.val == 42
 
-    test = Test(**{"integer": 10})
-    assert test.integer == 10
+    with pytest.raises(ShiftError):
+        _ = Test(val=InvalidType)
+    with pytest.raises(ShiftError):
+        _ = Test(**{"val": InvalidType})
 
-    with pytest.raises(ShiftValidationError):
-        test = Test(integer="Invalid type")
+def test_bool():
+    class Test(Shift):
+        val: bool
 
-    with pytest.raises(ShiftValidationError):
-        test = Test(**{"integer": "Invalid type"})
+    test = Test(val=True)
+    assert test.val is True
+    test = Test(**{"val": True})
+    assert test.val is True
+
+    with pytest.raises(ShiftError):
+        _ = Test(val=InvalidType)
+    with pytest.raises(ShiftError):
+        _ = Test(**{"val": InvalidType})
 
 def test_float():
     class Test(Shift):
-        flt: float
+        val: float
 
-    test = Test(flt=3.14)
-    assert test.flt == 3.14
+    test = Test(val=1.21)
+    assert test.val == 1.21
+    test = Test(**{"val": 1.21})
+    assert test.val == 1.21
 
-    test = Test(**{"flt": 3.14})
-    assert test.flt == 3.14
-
-    with pytest.raises(ShiftValidationError):
-        test = Test(flt="Invalid type")
-
-    with pytest.raises(ShiftValidationError):
-        test = Test(**{"flt": "Invalid type"})
+    with pytest.raises(ShiftError):
+        _ = Test(val=InvalidType)
+    with pytest.raises(ShiftError):
+        _ = Test(**{"val": InvalidType})
 
 def test_str():
     class Test(Shift):
-        string: str
+        val: str
 
-    test = Test(string="hello")
-    assert test.string == "hello"
+    test = Test(val="hello there")
+    assert test.val == "hello there"
+    test = Test(**{"val": "hello there"})
+    assert test.val == "hello there"
 
-    test = Test(**{"string": "hello"})
-    assert test.string == "hello"
-
-    with pytest.raises(ShiftValidationError):
-        test = Test(string=False)
-
-    with pytest.raises(ShiftValidationError):
-        test = Test(**{"string": False})
-
-def test_list():
-    class Test(Shift):
-        lst: list
-
-    test = Test(lst=[1, 2, 3])
-    assert test.lst == [1, 2, 3]
-
-    test = Test(**{"lst": [1, 2, 3]})
-    assert test.lst == [1, 2, 3]
-
-    with pytest.raises(ShiftValidationError):
-        test = Test(lst="Invalid type")
-
-    with pytest.raises(ShiftValidationError):
-        test = Test(**{"lst": "Invalid type"})
-
-    class Test(Shift):
-        lst: list[int]
-
-    with pytest.raises(ShiftValidationError):
-        test = Test(lst=[1, 2, "Invalid type"])
-
-    with pytest.raises(ShiftValidationError):
-        test = Test(**{"lst": [1, 2, "Invalid type"]})
-
-def test_tuple():
-    class Test(Shift):
-        tup: tuple
-
-    test = Test(tup=("hello", 10))
-    assert test.tup == ("hello", 10)
-
-    test = Test(**{"tup": ("hello", 10)})
-    assert test.tup == ("hello", 10)
-
-    with pytest.raises(ShiftValidationError):
-        test = Test(tup="Invalid type")
-
-    with pytest.raises(ShiftValidationError):
-        test = Test(**{"tup": "Invalid type"})
-
-    class Test(Shift):
-        tup: tuple[str, int]
-
-    with pytest.raises(ShiftValidationError):
-        test = Test(tup=("hello", "Invalid type"))
-
-    with pytest.raises(ShiftValidationError):
-        test = Test(**{"tup": ["hello", "Invalid type"]})
-
-def test_set():
-    class Test(Shift):
-        st: set
-
-    test = Test(st={1, 2, 3})
-    assert test.st == {1, 2, 3}
-
-    test = Test(**{"st": {1, 2, 3}})
-    assert test.st == {1, 2, 3}
-
-    with pytest.raises(ShiftValidationError):
-        test = Test(st="Invalid type")
-
-    with pytest.raises(ShiftValidationError):
-        test = Test(**{"st": "Invalid type"})
-
-    class Test(Shift):
-        st: set[int]
-
-    with pytest.raises(ShiftValidationError):
-        test = Test(st={1, 2, "Invalid type"})
-
-    with pytest.raises(ShiftValidationError):
-        test = Test(**{"st": [1, 2, "Invalid type"]})
-
-def test_frozenset():
-    class Test(Shift):
-        fset: frozenset
-
-    test = Test(fset=frozenset([1, 2, 3]))
-    assert test.fset == frozenset([1, 2, 3])
-
-    test = Test(**{"fset": {1, 2, 3}})
-    assert test.fset == {1, 2, 3}
-
-    with pytest.raises(ShiftValidationError):
-        test = Test(fset="Invalid type")
-
-    with pytest.raises(ShiftValidationError):
-        test = Test(**{"fset": "Invalid type"})
-
-    class Test(Shift):
-        fset: frozenset[int]
-
-    with pytest.raises(ShiftValidationError):
-        test = Test(fset=frozenset([1, 2, "Invalid type"]))
-
-    with pytest.raises(ShiftValidationError):
-        test = Test(**{"fset": {1, 2, "Invalid type"}})
-
-def test_dict():
-    class Test(Shift):
-        dct: dict
-
-    test = Test(dct={"Hello": 10})
-    assert test.dct["Hello"] == 10
-
-    test = Test(**{"dct": {"Hello": 10}})
-    assert test.dct["Hello"] == 10
-
-    with pytest.raises(ShiftValidationError):
-        test = Test(dct="Invalid type")
-
-    with pytest.raises(ShiftValidationError):
-        test = Test(**{"dct": "Invalid type"})
-
-    class Test(Shift):
-        dct: dict[str, int]
-
-    with pytest.raises(ShiftValidationError):
-        test = Test(dct={"Hello": "Invalid type"})
-
-    with pytest.raises(ShiftValidationError):
-        test = Test(**{"dct": {"Hello": "Invalid type"}})
+    with pytest.raises(ShiftError):
+        _ = Test(val=InvalidType)
+    with pytest.raises(ShiftError):
+        _ = Test(**{"val": InvalidType})
 
 def test_bytes():
     class Test(Shift):
-        bts: bytes
+        val: bytes
 
-    test = Test(bts=b"Hello")
-    assert test.bts == b"Hello"
+    test = Test(val=b"hello there")
+    assert test.val == b"hello there"
+    test = Test(**{"val": b"hello there"})
+    assert test.val == b"hello there"
 
-    test = Test(**{"bts": b"Hello"})
-    assert test.bts == b"Hello"
-
-    with pytest.raises(ShiftValidationError):
-        test = Test(bts="Invalid type")
-
-    with pytest.raises(ShiftValidationError):
-        test = Test(**{"bts": "Invalid type"})
+    with pytest.raises(ShiftError):
+        _ = Test(val=InvalidType)
+    with pytest.raises(ShiftError):
+        _ = Test(**{"val": InvalidType})
 
 def test_bytearray():
     class Test(Shift):
-        bts_arr: bytearray
+        val: bytearray
 
-    test = Test(bts_arr=bytearray(b"Hello"))
-    assert test.bts_arr == bytearray(b"Hello")
+    test = Test(val=bytearray(b"hello there"))
+    assert test.val == bytearray(b"hello there")
+    test = Test(**{"val": bytearray(b"hello there")})
+    assert test.val == bytearray(b"hello there")
 
-    test = Test(**{"bts_arr": bytearray(b"Hello")})
-    assert test.bts_arr == bytearray(b"Hello")
+    with pytest.raises(ShiftError):
+        _ = Test(val=InvalidType)
+    with pytest.raises(ShiftError):
+        _ = Test(**{"val": InvalidType})
 
 def test_any():
     class Test(Shift):
-        any: Any
+        val: Any
 
-    test = Test(any=1)
-    assert test.any == 1
+    test = Test(val=42)
+    assert test.val == 42
+    test = Test(**{"val": 42})
+    assert test.val == 42
 
-    test = Test(**{"any": 1})
-    assert test.any == 1
+    # Any doesn't have a fail case
 
-    test = Test(any="Hello")
-    assert test.any == "Hello"
+def test_list():
+    class Test(Shift):
+        val: list[int]
 
-    test = Test(**{"any": "Hello"})
-    assert test.any == "Hello"
+    test = Test(val=[4, 5, 6, 1, 2, 3])
+    assert test.val == [4, 5, 6, 1, 2, 3]
+    test = Test(**{"val": [4, 5, 6, 1, 2, 3]})
+    assert test.val == [4, 5, 6, 1, 2, 3]
+
+    with pytest.raises(ShiftError):
+        _ = Test(val=InvalidType)
+    with pytest.raises(ShiftError):
+        _ = Test(**{"val": InvalidType})
+
+    with pytest.raises(ShiftError):
+        _ = Test(val=[4, 5, 6, 1, 2, InvalidType])
+    with pytest.raises(ShiftError):
+        _ = Test(**{"val": [4, 5, 6, 1, 2, InvalidType]})
+
+def test_set():
+    class Test(Shift):
+        val: set[int]
+
+    test = Test(val={4, 5, 6, 1, 2, 3})
+    assert test.val == {4, 5, 6, 1, 2, 3}
+    test = Test(**{"val": {4, 5, 6, 1, 2, 3}})
+    assert test.val == {4, 5, 6, 1, 2, 3}
+
+    with pytest.raises(ShiftError):
+        _ = Test(val=InvalidType)
+    with pytest.raises(ShiftError):
+        _ = Test(**{"val": InvalidType})
+
+    with pytest.raises(ShiftError):
+        _ = Test(val={4, 5, 6, 1, 2, InvalidType})
+    with pytest.raises(ShiftError):
+        _ = Test(**{"val": {4, 5, 6, 1, 2, InvalidType}})
+
+def test_frozenset():
+    class Test(Shift):
+        val: frozenset[int]
+
+    test = Test(val=frozenset({4, 5, 6, 1, 2, 3}))
+    assert test.val == frozenset({4, 5, 6, 1, 2, 3})
+    test = Test(**{"val": frozenset({4, 5, 6, 1, 2, 3})})
+    assert test.val == frozenset({4, 5, 6, 1, 2, 3})
+
+    with pytest.raises(ShiftError):
+        _ = Test(val=InvalidType)
+    with pytest.raises(ShiftError):
+        _ = Test(**{"val": InvalidType})
+
+    with pytest.raises(ShiftError):
+        _ = Test(val=frozenset({4, 5, 6, 1, 2, InvalidType}))
+    with pytest.raises(ShiftError):
+        _ = Test(**{"val": frozenset({4, 5, 6, 1, 2, InvalidType})})
+
+def test_tuple():
+    class Test(Shift):
+        val: tuple[str, int]
+
+    test = Test(val=("hello there", 42))
+    assert test.val == ("hello there", 42)
+    test = Test(**{"val": ("hello there", 42)})
+    assert test.val == ("hello there", 42)
+
+    with pytest.raises(ShiftError):
+        _ = Test(val=InvalidType)
+    with pytest.raises(ShiftError):
+        _ = Test(**{"val": InvalidType})
+
+    with pytest.raises(ShiftError):
+        _ = Test(val=("hello there", InvalidType))
+    with pytest.raises(ShiftError):
+        _ = Test(**{"val": ("hello there", InvalidType)})
+
+def test_callable():
+    class Test(Shift):
+        val: Callable[[int], str]
+    @staticmethod
+    def func(x: int) -> str: return str(x)
+
+    test = Test(val=func)
+    assert test.val(42) == "42"
+    test = Test(**{"val": func})
+    assert test.val(42) == "42"
+
+    with pytest.raises(ShiftError):
+        _ = Test(val=InvalidType)
+    with pytest.raises(ShiftError):
+        _ = Test(**{"val": InvalidType})
+
+    @staticmethod
+    def func(y: str) -> str: return y
+    with pytest.raises(ShiftError):
+        _ = Test(val=func)
+    with pytest.raises(ShiftError):
+        _ = Test(**{"val": func})
+
+    @staticmethod
+    def func(x: int) -> int: return x
+    with pytest.raises(ShiftError):
+        _ = Test(val=func)
+    with pytest.raises(ShiftError):
+        _ = Test(**{"val": func})
+
+def test_dict():
+    class Test(Shift):
+        val: dict[str, int]
+
+    test = Test(val={"hello there": 42})
+    assert test.val == {"hello there": 42}
+    test = Test(**{"val": {"hello there": 42}})
+    assert test.val == {"hello there": 42}
+
+    with pytest.raises(ShiftError):
+        _ = Test(val=InvalidType)
+    with pytest.raises(ShiftError):
+        _ = Test(**{"val": InvalidType})
+
+    with pytest.raises(ShiftError):
+        _ = Test(val={"hello there": InvalidType})
+    with pytest.raises(ShiftError):
+        _ = Test(**{"val": {"hello there": InvalidType}})
 
 def test_union():
     class Test(Shift):
-        union: Union[str, int]
+        val: Union[int, str]
 
-    test = Test(union=10)
-    assert test.union == 10
+    test = Test(val=42)
+    assert test.val == 42
+    test = Test(**{"val": 42})
+    assert test.val == 42
 
-    test = Test(**{"union": 10})
-    assert test.union == 10
+    test = Test(val="hello there")
+    assert test.val == "hello there"
+    test = Test(**{"val": "hello there"})
+    assert test.val == "hello there"
 
-    test = Test(union="Hello")
-    assert test.union == "Hello"
-
-    test = Test(**{"union": "Hello"})
-    assert test.union == "Hello"
-
-    with pytest.raises(ShiftValidationError):
-        test = Test(union=3.14)
-
-    with pytest.raises(ShiftValidationError):
-        test = Test(**{"union": 3.14})
+    with pytest.raises(ShiftError):
+        _ = Test(val=InvalidType)
+    with pytest.raises(ShiftError):
+        _ = Test(**{"val": InvalidType})
 
 def test_optional():
     class Test(Shift):
-        optional: Optional[bool]
+        val: Optional[int]
+
+    test = Test(val=42)
+    assert test.val == 42
+    test = Test(**{"val": 42})
+    assert test.val == 42
 
     test = Test()
-    assert test.optional is None
+    assert test.val is None
 
-    test = Test(**{})
-    assert test.optional is None
-
-    test = Test(optional=True)
-    assert test.optional is True
-
-    test = Test(**{"optional": True})
-    assert test.optional is True
-
-    with pytest.raises(ShiftValidationError):
-        test = Test(optional="Invalid type")
-
-    with pytest.raises(ShiftValidationError):
-        test = Test(**{"optional": "Invalid type"})
-
-def test_forward_ref():
+def test_literal():
     class Test(Shift):
-        forward_ref: "ForwardTest"
+        val: Literal["hello there", "I have a bad feeling about this"]
 
-    class ForwardTest(Shift):
-        ref: int
+    test = Test(val="hello there")
+    assert test.val == "hello there"
+    test = Test(**{"val": "hello there"})
+    assert test.val == "hello there"
 
-    test = Test(forward_ref=ForwardTest(ref=10))
-    assert test.forward_ref.ref == 10
+    test = Test(val="I have a bad feeling about this")
+    assert test.val == "I have a bad feeling about this"
+    test = Test(**{"val": "I have a bad feeling about this"})
+    assert test.val == "I have a bad feeling about this"
 
-    test = Test(**{"forward_ref": {"ref": 10}})
-    assert test.forward_ref.ref == 10
+    with pytest.raises(ShiftError):
+        _ = Test(val=InvalidType)
+    with pytest.raises(ShiftError):
+        _ = Test(**{"val": InvalidType})
 
-    with pytest.raises(ShiftValidationError):
-        test = Test(forward_ref="Invalid type")
+    with pytest.raises(ShiftError):
+        _ = Test(val="invalid")
+    with pytest.raises(ShiftError):
+        _ = Test(**{"val": "invalid"})
 
-    with pytest.raises(ShiftValidationError):
-        test = Test(**{"forward_ref": "Invalid type"})
+class TForwardRef(Shift):
+    val: Optional[ForwardRef("TForwardRef")]
 
-    with pytest.raises(ShiftValidationError):
-        test = Test(forward_ref=ForwardTest(ref="Invalid type"))
+def test_forwardref():
+    ref = TForwardRef()
+    test = TForwardRef(val=ref)
+    assert test.val == ref
+    test = TForwardRef(**{"val": ref})
+    assert test.val == ref
 
-    with pytest.raises(ShiftValidationError):
-        test = Test(**{"forward_ref": {"ref": "Invalid type"}})
+    with pytest.raises(ShiftError):
+        _ = TForwardRef(val=InvalidType)
+    with pytest.raises(ShiftError):
+        _ = TForwardRef(**{"val": InvalidType})
 
-def test_function():
-    def f(val: int) -> int:
-        return val + 1
+def test_shift():
+    class A(Shift):
+        val: int
+    class B(Shift):
+        ref: A
 
-    class Test(Shift):
-        function: Callable[[int], int]
+    test = B(ref=A(val=42))
+    assert test.ref.val == 42
+    test = B(**{"ref": A(val=42)})
+    assert test.ref.val == 42
 
-    test = Test(function=f)
-    assert test.function(1) == 2
+    with pytest.raises(ShiftError):
+        _ = B(ref=InvalidType)
+    with pytest.raises(ShiftError):
+        _ = B(**{"ref": InvalidType})
 
-    test = Test(**{"function": f})
-    assert test.function(1) == 2
-
-    with pytest.raises(ShiftValidationError):
-        test = Test(function="Invalid type")
-
-    with pytest.raises(ShiftValidationError):
-        test = Test(**{"function": "Invalid type"})
+    with pytest.raises(ShiftError):
+        _ = B(ref=A(val=InvalidType))
+    with pytest.raises(ShiftError):
+        _ = B(**{"ref": A(val=InvalidType)})

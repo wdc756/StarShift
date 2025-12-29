@@ -1,4 +1,6 @@
-venv/
+.venv*/
 .idea/
+__pycache__/
 src/starshift.egg-info
 pytest.ini
+*.pyc

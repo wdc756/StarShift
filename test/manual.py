@@ -1,19 +1,25 @@
-from typing import Any, Optional, Union, Callable, get_type_hints
-from starshift import *
+import pytest
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
+from starshift.star_shift import *
+from datetime import datetime, timedelta
 
-DEFAULT_SHIFT_CONFIG.verbosity = 0
+
+
+InvalidType = object()
 
 
 
-def test():
+def run():
     class Test(Shift):
-        val: int
+        val = 42
 
-        @shift_validator('val')
-        def validate_val(self, data: dict[str, Any], field) -> bool:
-            return True
-
-    test = Test(val=10)
+    _missing = Missing()
+    print(_missing)
+    print(type(_missing))
+    test = Test()
+    assert test.val == 42
 
 if __name__ == '__main__':
-    test()
+    run()
