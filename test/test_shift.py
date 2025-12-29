@@ -8,6 +8,12 @@ from starshift.star_shift import *
 
 InvalidType = object()
 
+@pytest.fixture(autouse=True)
+def reset_starshift():
+    reset_starshift_globals()
+    yield
+    reset_starshift_globals()
+
 
 
 def test_changing_vals():
@@ -104,7 +110,7 @@ def test_pre_init():
 
         def __pre_init__(self, info: ShiftInfo):
             info.data["val"] = 81
-            info.fields = get_updated_fields(info.fields, info.data)
+            info.fields = get_updated_fields(self, info.fields, info.data, info.shift_config)
 
     test = Test()
     assert test.val == 81

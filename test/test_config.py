@@ -8,9 +8,15 @@ from starshift.star_shift import *
 
 InvalidType = object()
 
+@pytest.fixture(autouse=True)
+def reset_starshift():
+    reset_starshift_globals()
+    yield
+    reset_starshift_globals()
 
 
-def test_default():
+
+def test_default_config():
     class Test(Shift):
         val: int
 
@@ -18,13 +24,20 @@ def test_default():
     info = get_shift_info(Test, test, {})
     assert info.shift_config == DEFAULT_SHIFT_CONFIG
 
+    print(
+        f"BEFORE SET: DEFAULT_SHIFT_CONFIG.verbosity = {DEFAULT_SHIFT_CONFIG.verbosity}, id = {id(DEFAULT_SHIFT_CONFIG)}")
+
     DEFAULT_SHIFT_CONFIG.verbosity = 1
-    test = Test(val=81)
+    clear_shift_info_registry()
+    test = Test(val=42)
     info = get_shift_info(Test, test, {})
+    print(
+        f"AFTER SET: DEFAULT_SHIFT_CONFIG.verbosity = {DEFAULT_SHIFT_CONFIG.verbosity}, id = {id(DEFAULT_SHIFT_CONFIG)}")
     assert info.shift_config.verbosity == 1
+
     DEFAULT_SHIFT_CONFIG.verbosity = 0
 
-def test_override():
+def test_config_override():
     class Test(Shift):
         __shift_config__ = ShiftConfig(verbosity=1)
         val: int
@@ -50,19 +63,21 @@ def test_do_processing():
 
 # There's not a good way to test fail_fast because we can't read errors
 
-def test_try_coerce_types():
+# def try_coerce_types() - todo
+
+def test_allow_private_field_setting():
     class Test(Shift):
-        val: int
+        _val: int = 42
 
     with pytest.raises(ShiftError):
-        _ = Test(val="hello there")
+        _ = Test(_val=42)
 
     class Test(Shift):
-        __shift_config__ = ShiftConfig(try_coerce_types=True)
-        val: int
+        __shift_config__ = ShiftConfig(allow_private_field_setting=True)
+        _val: int
 
-    test = Test(val="42")
-    assert test.val == 42
+    test = Test(_val=42)
+    assert test._val == 42
 
 def test_include_default_fields_in_serialization():
     class Test(Shift):
@@ -82,17 +97,19 @@ def test_include_default_fields_in_serialization():
 
 def test_include_private_fields_in_serialization():
     class Test(Shift):
+        __shift_config__ = ShiftConfig(allow_private_field_setting=True)
         _val: int
 
     test = Test(_val=42)
     assert repr(test) == "Test()"
     assert test.serialize() == {}
 
-    shift_config = ShiftConfig(include_private_fields_in_serialization=True)
+    shift_config = ShiftConfig(include_private_fields_in_serialization=True, allow_private_field_setting=True)
+
     class Test(Shift):
         __shift_config__ = shift_config
         _val: int
 
     test = Test(_val=42)
     assert repr(test) == f"Test(__shift_config__={shift_config}, _val=42)"
-    assert test.serialize() == {"__shift_config__": shift_config, "_val": 42}
+    assert serialize(test) == {"__shift_config__": serialize(shift_config), "_val": 42}

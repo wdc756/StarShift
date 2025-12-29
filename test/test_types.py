@@ -8,6 +8,12 @@ from starshift.star_shift import *
 
 InvalidType = object()
 
+@pytest.fixture(autouse=True)
+def reset_starshift():
+    reset_starshift_globals()
+    yield
+    reset_starshift_globals()
+
 
 
 def test_none():

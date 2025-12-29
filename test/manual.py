@@ -11,15 +11,17 @@ InvalidType = object()
 
 
 def run():
-    shift_config = ShiftConfig(include_default_fields_in_serialization=True)
-
     class Test(Shift):
-        __shift_config__ = shift_config
-        _val: int
+        val: int
+        _private: int = 42
 
-    test = Test(_val=42)
-    assert repr(test) == f"Test(__shift_config__={shift_config}, _val=42)"
-    assert test.serialize() == {"__shift_config__": shift_config, "_val": 42}
+        @shift_setter('_private')
+        def set_val(self, field: ShiftField, info: ShiftInfo):
+            self._private = self.val
+
+    test = Test(val=81)
+    print(test._private)
+    assert test._private == 81
 
 if __name__ == '__main__':
     run()

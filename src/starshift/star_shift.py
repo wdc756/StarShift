@@ -29,7 +29,7 @@ _resolved_forward_refs: dict[str, Type] = {}
 
 # Global info registers (metadata)
 #   By leaving this here we can keep global references of static class elements like config and decorated class defs
-_model_info: dict[Type, ShiftInfo] = {}
+_shift_info_registry: dict[Type, ShiftInfo] = {}
 
 # Global function registers, used to skip inspecting shift-decorated functions
 #   True is advanced, False is simple
@@ -333,7 +333,7 @@ def _resolve_forward_ref(typ: str | ForwardRef, info: ShiftInfo) -> Type:
         return info.instance.__class__
 
     # Check if typ is in global model info cache
-    for cls in _model_info.keys():
+    for cls in _shift_info_registry.keys():
         if typ == cls.__name__:
             _resolved_forward_refs[typ] = cls
             return cls
@@ -758,6 +758,7 @@ class ShiftConfig:
         fail_fast (bool): If True, processing will stop on the first error encountered. Default; False
         do_processing (bool): If True, on init all fields will be transformed, validated, and set. If False, you must manually set everything (use __post_init__); Default: True
         try_coerce_types (bool): If True, Shift will attempt to coerce types where possible. If False, all types must match exactly; Default: False
+        allow_private_field_setting (bool): If False, Shift will not throw when a class is instantiated with a private field val; Default: False
         include_default_fields_in_serialization (bool): If True, default value fields will be serialized (used in repr too); Default: False
         include_private_fields_in_serialization (bool): If True, private fields will be serialized (used in repr too); Default: False
     """
@@ -765,10 +766,22 @@ class ShiftConfig:
     do_processing: bool = True
     fail_fast: bool = False
     try_coerce_types: bool = False
+    allow_private_field_setting: bool = False
     include_default_fields_in_serialization: bool = False
     include_private_fields_in_serialization: bool = False
 
 
+
+    def __eq__(self, other):
+        if not isinstance(other, ShiftConfig):
+            return False
+        return serialize(self) == serialize(other)
+
+    def __ne__(self, other):
+        return not self == other
+
+    def __bool__(self):
+        return self is not None
 
     def __repr__(self) -> str:
         result: list[str] = []
@@ -780,6 +793,8 @@ class ShiftConfig:
             result.append(f"fail_fast={self.fail_fast}")
         if self.try_coerce_types:
             result.append(f"try_coerce_types={self.try_coerce_types}")
+        if self.allow_private_field_setting:
+            result.append(f"allow_private_field_setting={self.allow_private_field_setting}")
         if self.include_default_fields_in_serialization:
             result.append(f"include_default_fields_in_serialization={self.include_default_fields_in_serialization}")
         if self.include_private_fields_in_serialization:
@@ -796,11 +811,24 @@ class ShiftConfig:
             result['fail_fast'] = self.fail_fast
         if self.try_coerce_types:
             result['try_coerce_types'] = self.try_coerce_types
+        if self.allow_private_field_setting:
+            result['allow_private_field_setting'] = self.allow_private_field_setting
         if self.include_default_fields_in_serialization:
             result['include_default_fields_in_serialization'] = self.include_default_fields_in_serialization
         if self.include_private_fields_in_serialization:
             result['include_private_fields_in_serialization'] = self.include_private_fields_in_serialization
         return result
+
+    def __copy__(self) -> ShiftConfig:
+        return ShiftConfig(
+            verbosity=self.verbosity,
+            fail_fast=self.fail_fast,
+            do_processing=self.do_processing,
+            try_coerce_types=self.try_coerce_types,
+            allow_private_field_setting=self.allow_private_field_setting,
+            include_default_fields_in_serialization=self.include_default_fields_in_serialization,
+            include_private_fields_in_serialization=self.include_private_fields_in_serialization,
+        )
 
 
 
@@ -935,12 +963,12 @@ def _repr_field(field: ShiftField, info: ShiftInfo) -> str:
 
 def _repr(info: ShiftInfo) -> str:
     res: list[str] = []
+    if info.shift_config.include_private_fields_in_serialization and (info.shift_config != DEFAULT_SHIFT_CONFIG or info.shift_config.include_default_fields_in_serialization):
+        res.append(f"__shift_config__={repr(info.shift_config)}")
     for field in info.fields:
         r = (_repr_field(field, info))
         if r and len(r):
             res.append(field.name + "=" + r)
-    if info.shift_config.include_private_fields_in_serialization and (info.shift_config != DEFAULT_SHIFT_CONFIG or info.shift_config.include_default_fields_in_serialization):
-        res.append(f"__shift_config__={repr(info.shift_config)}")
     return f"{info.model_name}({', '.join(res)})"
 
 
@@ -967,12 +995,12 @@ def _serialize_field(field: ShiftField, info: ShiftInfo) -> dict[str, Any] | Non
 
 def _serialize(info: ShiftInfo) -> dict[str, Any]:
     result = {}
+    if info.shift_config.include_private_fields_in_serialization and (info.shift_config != DEFAULT_SHIFT_CONFIG or info.shift_config.include_default_fields_in_serialization):
+        result["__shift_config__"] = serialize(info.shift_config)
     for field in info.fields:
         res = _serialize_field(field, info)
         if res is not None:
             result[field.name] = res
-    if info.shift_config.include_private_fields_in_serialization and (info.shift_config != DEFAULT_SHIFT_CONFIG or info.shift_config.include_default_fields_in_serialization):
-        result["__shift_config__"] = info.shift_config.serialize()
     return result
 
 
@@ -998,7 +1026,7 @@ def get_shift_config(cls, fields: dict) -> ShiftConfig | None:
         shift_config = DEFAULT_SHIFT_CONFIG
 
     log_verbose(shift_config.verbosity, ["", "", f"shift_config: {shift_config}"])
-    return shift_config
+    return shift_config.__copy__()
 
 def get_field_decorators(cls: Any, fields: dict) -> dict[str, list[_Any_Decorator] | list[str]]:
     # Create the return dict structure
@@ -1011,7 +1039,7 @@ def get_field_decorators(cls: Any, fields: dict) -> dict[str, list[_Any_Decorato
         "validators": {},
         "setters": {},
         "reprs": {},
-        "serializers": {},
+        "serializers": {}
     }
 
     # Find and process decorators in fields
@@ -1077,13 +1105,7 @@ def get_field_decorators(cls: Any, fields: dict) -> dict[str, list[_Any_Decorato
     # Return decorators dict
     return dct
 
-def get_val_fields(instance: Any, fields: list[ShiftField]) -> list[ShiftField]:
-    for field in fields:
-        if hasattr(instance, field.name):
-            field.val = getattr(instance, field.name)
-    return fields
-
-def get_fields(cls: Any, fields: dict, data: dict) -> list[ShiftField]:
+def get_fields(cls: Any, fields: dict, data: dict, shift_config: ShiftConfig = DEFAULT_SHIFT_CONFIG) -> list[ShiftField]:
     shift_fields: list[ShiftField] = []
 
     # Get all annotated fields - use try because forward references break get_type_hints
@@ -1093,6 +1115,10 @@ def get_fields(cls: Any, fields: dict, data: dict) -> list[ShiftField]:
         annotated = cls.__annotations__.copy() if hasattr(cls, "__annotations__") else {}
 
     for field_name, field_type in annotated.items():
+        # Skip magic fields
+        if field_name.startswith("__") and field_name.endswith("__"):
+            continue
+
         # Get default value
         try:
             default = getattr(cls, field_name, MISSING)
@@ -1104,17 +1130,21 @@ def get_fields(cls: Any, fields: dict, data: dict) -> list[ShiftField]:
         if field_name in data:
             val = data[field_name]
 
+        # If field is private, has a data-set value, and allow setting is false, throw
+        if field_name.startswith("_") and val is not MISSING and not shift_config.allow_private_field_setting:
+            raise ShiftError(cls.__name__, f"{field_name} has a set value in data, but allow_private_field_setting is False")
+
         # Add to shift_fields list
         shift_fields.append(ShiftField(name=field_name, typ=field_type, val=val, default=default))
 
     # Get all non-annotated fields
     for field_name in fields.keys():
-        # Skip private/magic fields
-        if field_name.startswith("_"):
-            continue
-
         # Skip annotated fields
         if field_name in annotated:
+            continue
+
+        # Skip magic fields
+        if field_name.startswith("__") and field_name.endswith("__"):
             continue
 
         # Get value
@@ -1132,32 +1162,47 @@ def get_fields(cls: Any, fields: dict, data: dict) -> list[ShiftField]:
         if field_name in data:
             val = data[field_name]
 
+            # If field is private, has a data-set value, and allow setting is false, throw
+            if field_name.startswith("_") and val is not MISSING and not shift_config.allow_private_field_setting:
+                raise ShiftError(cls.__name__,f"{field_name} has a set value in data, but allow_private_field_setting is False")
+
         # Add to shift_fields list
         shift_fields.append(ShiftField(name=field_name, val=val, default=default))
 
     # Return shift_fields list
     return shift_fields
 
-def get_updated_fields(fields: list[ShiftField], data: dict) -> list[ShiftField]:
+def get_updated_fields(instance: Any, fields: list[ShiftField], data: dict, shift_config: ShiftConfig = DEFAULT_SHIFT_CONFIG) -> list[ShiftField]:
     # For each field, update val from data if exists, else set to default
     for field in fields:
+        # If name is private, a data val is present, and allow setting is false, throw
+        if field.name.startswith("_") and field.name in data and not shift_config.allow_private_field_setting:
+            raise ShiftError(instance.__class__.__name__, f"{field.name} has a set value in data, but allow_private_field_setting is False")
+
         if field.name in data:
             field.val = data[field.name]
         else:
             field.val = field.default
     return fields
 
+def get_val_fields(instance: Any, fields: list[ShiftField]) -> list[ShiftField]:
+    for field in fields:
+        if hasattr(instance, field.name):
+            field.val = getattr(instance, field.name)
+    return fields
+
 # noinspection PyTypeChecker
 def get_shift_info(cls: Any, instance: Any, data: dict) -> ShiftInfo:
     # If cls is in model_info, return copy so non-persistent data is not kept
-    if cls in _model_info:
-        cached_info = _model_info[cls]
+    if cls in _shift_info_registry:
+        cached_info = _shift_info_registry[cls]
         # Build new copied info
         info = ShiftInfo(
             instance=instance,
             model_name=cached_info.model_name,
             shift_config=cached_info.shift_config,
-            fields=get_updated_fields(cached_info.fields, data), # This always needs to be updated with the new data
+            # This always needs to be updated with the new data
+            fields=get_updated_fields(instance, cached_info.fields, data, cached_info.shift_config),
             pre_transformer_skips=cached_info.pre_transformer_skips,
             pre_transformers=cached_info.pre_transformers,
             transformers=cached_info.transformers,
@@ -1174,11 +1219,11 @@ def get_shift_info(cls: Any, instance: Any, data: dict) -> ShiftInfo:
 
     # Else build new info and add to model_info
     ## Get all fields (annotated, non-annotated, functions, etc
-    fields = getattr(cls, "__dict__", {}).copy()
+    cls_dict = getattr(cls, "__dict__", {}).copy()
     ## Get config, shift_fields, and decorators
-    shift_config = get_shift_config(cls, fields)
-    shift_fields = get_fields(cls, fields, data)
-    decorators = get_field_decorators(cls, fields)
+    shift_config = get_shift_config(cls, cls_dict)
+    shift_fields = get_fields(cls, cls_dict, data, shift_config)
+    decorators = get_field_decorators(cls, cls_dict)
     ## Build info class
     info = ShiftInfo(
         instance=instance,
@@ -1199,7 +1244,7 @@ def get_shift_info(cls: Any, instance: Any, data: dict) -> ShiftInfo:
     )
 
     # Register info and return it
-    _model_info[cls] = info
+    _shift_info_registry[cls] = info
     return info
 
 
@@ -1368,62 +1413,24 @@ def clear_forward_refs() -> None:
 ## Shift Infos
 ############################################################
 
-def get_model_info_registry() -> dict[Any, ShiftInfo]:
+def get_shift_info_registry() -> dict[Any, ShiftInfo]:
     """Returns a copy of the model info registry"""
-    return _model_info.copy()
+    return _shift_info_registry.copy()
 
-def generate_shift_info(instance: Any) -> None:
-    """Generates shift info for a class (if one does not already exist)"""
-    get_shift_info(instance.__class__, instance, {})
-
-def deregister_shift_info(instance: Any) -> None:
-    """Deregisters shift info for a class"""
-    if instance.__class__ not in _model_info:
-        raise ShiftError("<module>", f"Class `{instance.__class__.__name__}` is not registered")
-    del _model_info[instance.__class__]
-
-def clear_shift_info_cache(instance: Any) -> None:
+def clear_shift_info_registry() -> None:
     """Clears the shift info cache for a shift class"""
-    if instance.__class__ not in _model_info:
-        raise ShiftError("<module>", f"Class `{instance.__class__.__name__}` is not registered")
-    del _model_info[instance.__class__]
+    _shift_info_registry.clear()
 
 
 
 ## Shift Functions
 ############################################################
 
-def get_shift_function_registry() -> dict[Callable[[...], Any], bool]:
+def get_shift_function_registry() -> dict[Callable[[_Any_Decorator], bool], bool]:
     """Returns a copy of the shift function registry"""
     return _shift_functions.copy()
 
-def generate_shift_function(func: Callable) -> None:
-    """Generates the shift function inspection data for a shift-decorated function"""
-    # Get function signature
-    sig = inspect.signature(func)
-
-    # If len(params) == 2, it's a simple function
-    if len(sig.parameters) == 2:
-        _shift_functions[func] = False
-
-    # Else if len(params) == 3 and it expects a ShiftField and ShiftInfo, it's an advanced function
-    expects_shift_field = False
-    expects_shift_info = False
-    for param in sig.parameters.values():
-        if param.annotation == ShiftField:
-            expects_shift_field = True
-        elif param.annotation == ShiftInfo:
-            expects_shift_info = True
-    if len(sig.parameters) == 3 and expects_shift_field and expects_shift_info:
-        _shift_functions[func] = True
-
-def deregister_shift_function(func: Callable) -> None:
-    """De-register the inspection data for a shift-decorated function"""
-    if func not in _shift_functions:
-        raise ShiftError("<module>", f"`{func}` not a registered shift function")
-    del _shift_functions[func]
-
-def clear_shift_function_cache() -> None:
+def clear_shift_function_registry() -> None:
     """Clears the shift function cache"""
     _shift_functions.clear()
 
@@ -1432,10 +1439,31 @@ def clear_shift_function_cache() -> None:
 ## Misc
 ############################################################
 
-def serialize() -> dict[str, Any]:
-    """Try to call instance.serialize() if it exists else error"""
+def serialize(instance: Any, throw: bool = True) -> dict[str, Any] | None:
+    """Try to call instance.serialize() if the instance has the attribute, else it conditionally throws an error"""
+    if not hasattr(instance, "serialize") or not callable(instance.serialize):
+        if throw:
+            raise ShiftError(instance.__class__.__name__, f".serialize() does not exist on the given instance, but serialize was called")
+        return None
+    return instance.serialize()
 
-# Register Builtin types
-_shift_types.update(_shift_builtin_types)
-# Register Shift type
-_shift_types[Shift] = _shift_shift_type
+def reset_starshift_globals() -> None:
+    """Reset all global registers and values"""
+    _shift_types.clear()
+    _shift_types.update(_shift_builtin_types)
+    _shift_types[Shift] = _shift_shift_type
+    _resolved_forward_refs.clear()
+    _shift_info_registry.clear()
+    _shift_functions.clear()
+
+    # Re-use existing default config to avoid val vs ref errors
+    global DEFAULT_SHIFT_CONFIG
+    DEFAULT_SHIFT_CONFIG.verbosity = 0
+    DEFAULT_SHIFT_CONFIG.do_processing = True
+    DEFAULT_SHIFT_CONFIG.fail_fast = False
+    DEFAULT_SHIFT_CONFIG.try_coerce_types = False
+    DEFAULT_SHIFT_CONFIG.include_default_fields_in_serialization = False
+    DEFAULT_SHIFT_CONFIG.include_private_fields_in_serialization = False
+
+# Setup starshift
+reset_starshift_globals()
