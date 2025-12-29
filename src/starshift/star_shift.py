@@ -265,51 +265,6 @@ class ShiftField:
     val: Any = MISSING
     default: Any = MISSING
 
-@dataclass
-class ShiftType:
-    """Universal type interface for all validation types
-
-    Attributes:
-        transformer (Callable[[Any], Any] | Callable[[ShiftField, ShiftInfo], Any]): The type transformer function
-        validator (Callable[[Any], bool] | Callable[[ShiftField, ShiftInfo], bool]): The type validator function
-        setter (Callable[[Any, Any], None] | Callable[[ShiftField, ShiftInfo], None]): The type setter function
-        repr (Callable[[Any], str] | Callable[[ShiftField, ShiftInfo], str]): The type repr function
-        serializer (Callable[[Any], dict[str, Any]] | Callable[[ShiftField, ShiftInfo], dict[str, Any]]): The type serializer function
-    """
-    transformer: _Transformer
-    validator: _Validator
-    setter: _Setter
-    repr: _Repr
-    serializer: _Serializer
-
-def get_shift_type(typ: Any) -> ShiftType | None:
-    # If typ has no hash, we can't use it as a key in a dict
-    if not hasattr(typ, "__hash__"):
-        return None
-
-    # If in types, return the type
-    if typ in _shift_types:
-        return _shift_types[typ]
-
-    # If origin in types, return the type
-    origin = get_origin(typ)
-    if origin in _shift_types:
-        return _shift_types[origin]
-
-    # If type is a ForwardRef, return the type
-    if isinstance(typ, ForwardRef):
-        return _shift_types[ForwardRef]
-
-    # If type is a Shift subclass, return shift type
-    try:
-        if issubclass(typ, Shift):
-            return _shift_types[Shift]
-    except Exception:
-        pass
-
-    # Else type is unknown, return None
-    return None
-
 
 
 ## Builtin Type Functions
@@ -551,23 +506,32 @@ def _shift_callable_validator(instance: Any, field: ShiftField, info: ShiftInfo)
 
 def _shift_shift_type_validator(instance: Any, field: ShiftField, info: ShiftInfo) -> bool:
     # If already the right type, return True
+    ## Save cached val because isinstance will change it
+    cached_val = field.val
     try:
         if isinstance(field.val, field.typ):
             return True
 
     # Was not instance - throws on fail
-    except ShiftError:
+    except Exception:
         return False
 
     # Else if val is a dict, try to validate it
+    field.val = cached_val
     if isinstance(field.val, dict):
         try:
-            if field.typ.validate(**field.val):
-                return True
+            # Try to instantiate it, store value for later
+            field.val = field.typ(**field.val) # noqa
+            return True
 
         # Invalid subclass data
-        except ShiftError:
-            return False
+        except ShiftError as e:
+            # Raise again to get collected upstream
+            raise e
+
+        # Not a shift subclass?
+        except Exception as e:
+            info.errors.append(ShiftError(info.model_name, f"Attempt to instantiate shift subclass failed: {e}"))
 
     # No way to validate, possibly improper type assignment?
     return False
@@ -670,6 +634,58 @@ def shift_type_serializer(instance: Any, typ: Any, val: Any, field: ShiftField, 
     # Build temporary ShiftField for serialization and call serializer
     temp_field = ShiftField(name=f"{field.name}.{typ}", typ=typ, val=val)
     return shift_function_wrapper(temp_field, info, shift_typ.serializer)
+
+
+
+## Shift Type
+############################################################
+
+@dataclass
+class ShiftType:
+    """Universal type interface for all validation types
+
+    Attributes:
+        transformer (Callable[[Any], Any] | Callable[[ShiftField, ShiftInfo], Any]): The type transformer function; Default: shift_transformer
+        validator (Callable[[Any], bool] | Callable[[ShiftField, ShiftInfo], bool]): The type validator function; Default: shift_validator
+        setter (Callable[[Any, Any], None] | Callable[[ShiftField, ShiftInfo], None]): The type setter function; Default: shift_setter
+        repr (Callable[[Any], str] | Callable[[ShiftField, ShiftInfo], str]): The type repr function; Default: shift_repr
+        serializer (Callable[[Any], dict[str, Any]] | Callable[[ShiftField, ShiftInfo], dict[str, Any]]): The type serializer function; Default: shift_serializer
+    """
+    transformer: _Transformer = shift_type_transformer
+    validator: _Validator = _shift_base_type_validator
+    setter: _Setter = shift_type_setter
+    repr: _Repr = shift_type_repr
+    serializer: _Serializer = _shift_base_type_serializer
+
+def get_shift_type(typ: Any) -> ShiftType | None:
+    # If typ has no hash, we can't use it as a key in a dict
+    if not hasattr(typ, "__hash__"):
+        return None
+
+    # If in types, return the type
+    if typ in _shift_types:
+        return _shift_types[typ]
+
+    # If origin in types, return the type
+    origin = get_origin(typ)
+    if origin in _shift_types:
+        return _shift_types[origin]
+
+    # If type is a ForwardRef, return the type
+    if isinstance(typ, ForwardRef):
+        return _shift_types[ForwardRef]
+
+    # If type is a Shift subclass, return shift type
+    try:
+        if issubclass(typ, Shift):
+            return _shift_types[Shift]
+    except Exception:
+        pass
+
+    # Else type is unknown, return None
+    return None
+
+
 
 ## Builtin Types
 ############################################################
@@ -909,7 +925,7 @@ def _validate(info: ShiftInfo) -> bool:
                 all_valid = False
                 raise ShiftError(info.model_name, f"Validation failed for {field.name}")
         except ShiftError as e:
-            info.errors.append(e)
+            info.errors.append(ShiftError(info.model_name, f"Validation failed for {field.name}: {e}"))
 
     return all_valid
 
@@ -1044,8 +1060,8 @@ def get_field_decorators(cls: Any, fields: dict) -> dict[str, list[_Any_Decorato
 
     # Find and process decorators in fields
     for field_name in fields.keys():
-        # Skip private/magic fields
-        if field_name.startswith("_"):
+        # Skip magic fields
+        if field_name.startswith("__") and field_name.endswith("__"):
             continue
 
         # Get value
@@ -1173,23 +1189,33 @@ def get_fields(cls: Any, fields: dict, data: dict, shift_config: ShiftConfig = D
     return shift_fields
 
 def get_updated_fields(instance: Any, fields: list[ShiftField], data: dict, shift_config: ShiftConfig = DEFAULT_SHIFT_CONFIG) -> list[ShiftField]:
-    # For each field, update val from data if exists, else set to default
+    updated_fields = []
     for field in fields:
         # If name is private, a data val is present, and allow setting is false, throw
         if field.name.startswith("_") and field.name in data and not shift_config.allow_private_field_setting:
             raise ShiftError(instance.__class__.__name__, f"{field.name} has a set value in data, but allow_private_field_setting is False")
 
-        if field.name in data:
-            field.val = data[field.name]
-        else:
-            field.val = field.default
-    return fields
+        # Create a NEW ShiftField instead of mutating the cached one
+        new_val = data.get(field.name, field.default)
+        updated_fields.append(ShiftField(
+            name=field.name,
+            typ=field.typ,
+            val=new_val,
+            default=field.default
+        ))
+    return updated_fields
 
 def get_val_fields(instance: Any, fields: list[ShiftField]) -> list[ShiftField]:
+    val_fields = []
     for field in fields:
         if hasattr(instance, field.name):
-            field.val = getattr(instance, field.name)
-    return fields
+            val_fields.append(ShiftField(
+                name=field.name,
+                typ=field.typ,
+                val=getattr(instance, field.name),
+                default=field.default
+            ))
+    return val_fields
 
 # noinspection PyTypeChecker
 def get_shift_info(cls: Any, instance: Any, data: dict) -> ShiftInfo:
@@ -1265,7 +1291,6 @@ class Shift:
 
         # Run transform, validation, and set processes
         if info.shift_config.do_processing:
-
             self.validate(info) # Runs transform
             self.set(info)
 
@@ -1445,7 +1470,7 @@ def serialize(instance: Any, throw: bool = True) -> dict[str, Any] | None:
         if throw:
             raise ShiftError(instance.__class__.__name__, f".serialize() does not exist on the given instance, but serialize was called")
         return None
-    return instance.serialize()
+    return instance.serialize() # noqa
 
 def reset_starshift_globals() -> None:
     """Reset all global registers and values"""

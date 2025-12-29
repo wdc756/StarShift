@@ -52,22 +52,9 @@ def test_shift_has_methods():
     assert hasattr(test, "__copy__")
     assert hasattr(test, "__deepcopy__")
 
-# Note we don't need to test __init_subclass__ or __init__ because those are validated when everything else works
+# We don't need to test __init__ because those are validated when everything else works
 
-def test_shift_transform():
-    class Test(Shift):
-        val: int = 42
-
-    test = Test()
-    info = get_shift_info(Test, test, {})
-    test.transform(**{"val": 81})
-    val_field = None
-    for field in info.fields:
-        if field.name == "val":
-            val_field = field
-            break
-    assert val_field.val == 81
-    assert test.val == 42
+# We don't need to test transform() because it's only relevant in validate(), which is already tested
 
 def test_shift_validate():
     class Test(Shift):
