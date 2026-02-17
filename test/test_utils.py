@@ -155,7 +155,7 @@ def test_get_fields():
         val: int
 
     fields = [
-        ShiftField(typ=int, name='val')
+        ShiftFieldInfo(typ=int, name='val')
     ]
     assert get_fields(Test, Test.__dict__.copy(), {}) == fields
 
@@ -163,7 +163,7 @@ def test_get_fields():
         val: int = 42
 
     fields = [
-        ShiftField(typ=int, name='val', val=81, default=42)
+        ShiftFieldInfo(typ=int, name='val', val=81, default=42)
     ]
     assert get_fields(Test, Test.__dict__.copy(), {"val": 81}) == fields
 
@@ -174,7 +174,7 @@ def test_get_fields():
             print("hello there")
 
     fields = [
-        ShiftField(typ=int, name='val')
+        ShiftFieldInfo(typ=int, name='val')
     ]
     assert get_fields(Test, Test.__dict__.copy(), {}) == fields
 
@@ -185,7 +185,7 @@ def test_get_updated_fields():
     test_1 = Test(val=42)
     test_2 = Test(val=81)
     fields = [
-        ShiftField(typ= int, name='val', val=81)
+        ShiftFieldInfo(typ= int, name='val', val=81)
     ]
     assert get_updated_fields(test_2, get_fields(Test, Test.__dict__.copy(), {}), {"val": 81}) == fields
 
@@ -195,7 +195,7 @@ def test_get_val_fields():
 
     test = Test(val=42)
     fields = [
-        ShiftField(typ= int, name='val', val=42)
+        ShiftFieldInfo(typ= int, name='val', val=42)
     ]
     assert get_val_fields(test, get_fields(Test, Test.__dict__.copy(), {})) == fields
 
@@ -209,7 +209,7 @@ def test_get_shift_info():
         model_name='Test',
         shift_config=DEFAULT_SHIFT_CONFIG,
         fields=[
-            ShiftField(typ=int, name='val', val=42)
+            ShiftFieldInfo(typ=int, name='val', val=42)
         ],
         pre_transformer_skips=[],
         pre_transformers={},
@@ -376,7 +376,7 @@ def test_get_shift_function_registry():
             return val + 1
 
         @shift_validator('val')
-        def validate_val(self, field: ShiftField, info: ShiftInfo):
+        def validate_val(self, field: ShiftFieldInfo, info: ShiftInfo):
             return field.val > 0
 
     _ = Test(val=42)
@@ -395,7 +395,7 @@ def test_clear_shift_function_registry():
             return val + 1
 
         @shift_validator('val')
-        def validate_val(self, field: ShiftField, info: ShiftInfo):
+        def validate_val(self, field: ShiftFieldInfo, info: ShiftInfo):
             return field.val > 0
 
     test = Test(val=42)

@@ -30,7 +30,7 @@ class Task(Shift):
 
 
     @shift_validator('title', 'assignees', 'admins')
-    def _validate_non_empty_lists_and_strs(self, field: ShiftField, info: ShiftInfo) -> bool:
+    def _validate_non_empty_lists_and_strs(self, field: ShiftFieldInfo, info: ShiftInfo) -> bool:
         if len(field.val) == 0:
             raise ShiftError('Task', f"{field.name} cannot be empty")
         return True
@@ -61,7 +61,7 @@ class Group(Shift):
 
 
     @shift_validator('title', 'description', 'members', 'admins')
-    def _validate_non_empty_lists_and_strs(self, field: ShiftField, info: ShiftInfo) -> bool:
+    def _validate_non_empty_lists_and_strs(self, field: ShiftFieldInfo, info: ShiftInfo) -> bool:
         if len(field.val) == 0:
             raise ShiftError('Group', f"{field.name} cannot be empty")
         return True
@@ -74,7 +74,7 @@ class Employee(Shift):
 
 
     @shift_validator('first_name', 'last_name')
-    def _validate_non_empty_name(self, field: ShiftField, info: ShiftInfo) -> bool:
+    def _validate_non_empty_name(self, field: ShiftFieldInfo, info: ShiftInfo) -> bool:
         if len(field.val) == 0:
             raise ShiftError('Task', f"{field.name} cannot be empty")
         return True
@@ -841,7 +841,7 @@ invalid_company_2 = {
 
 @pytest.mark.application
 def test_valid_company_datasets():
-    def date_type_validator(instance: Any, field: ShiftField, info: ShiftInfo) -> bool:
+    def date_type_validator(instance: Any, field: ShiftFieldInfo, info: ShiftInfo) -> bool:
         return isinstance(field.val, datetime)
     date_shift_type = ShiftType(
         validator=date_type_validator,
@@ -854,7 +854,7 @@ def test_valid_company_datasets():
 
 @pytest.mark.application
 def test_invalid_company_datasets():
-    def date_type_validator(instance: Any, field: ShiftField, info: ShiftInfo) -> bool:
+    def date_type_validator(instance: Any, field: ShiftFieldInfo, info: ShiftInfo) -> bool:
         return isinstance(field.val, datetime)
     date_shift_type = ShiftType(
         validator=date_type_validator,

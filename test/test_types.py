@@ -30,6 +30,20 @@ def test_none():
     with pytest.raises(ShiftError):
         _ = Test(**{"val": InvalidType})
 
+def test_missing_to_none():
+    class Test(Shift):
+        val: None
+
+    test = Test()
+    assert test.val is None
+    test = Test(**{})
+    assert test.val is None
+
+    with pytest.raises(ShiftError):
+        _ = Test(val=InvalidType)
+    with pytest.raises(ShiftError):
+        _ = Test(**{"val": InvalidType})
+
 def test_int():
     class Test(Shift):
         val: int
@@ -308,18 +322,6 @@ def test_literal():
 class TForwardRef(Shift):
     val: Optional[ForwardRef("TForwardRef")]
 
-def test_forwardref():
-    ref = TForwardRef()
-    test = TForwardRef(val=ref)
-    assert test.val == ref
-    test = TForwardRef(**{"val": ref})
-    assert test.val == ref
-
-    with pytest.raises(ShiftError):
-        _ = TForwardRef(val=InvalidType)
-    with pytest.raises(ShiftError):
-        _ = TForwardRef(**{"val": InvalidType})
-
 def test_shift():
     class A(Shift):
         val: int
@@ -340,3 +342,31 @@ def test_shift():
         _ = B(ref=A(val=InvalidType))
     with pytest.raises(ShiftError):
         _ = B(**{"ref": A(val=InvalidType)})
+
+def test_forwardref():
+    ref = TForwardRef()
+    test = TForwardRef(val=ref)
+    assert test.val == ref
+    test = TForwardRef(**{"val": ref})
+    assert test.val == ref
+
+    with pytest.raises(ShiftError):
+        _ = TForwardRef(val=InvalidType)
+    with pytest.raises(ShiftError):
+        _ = TForwardRef(**{"val": InvalidType})
+
+def test_shift_field_basic():
+    class Test(Shift):
+        val = ShiftField(int)
+
+    test = Test(val=42)
+    assert test.val == 42
+
+    test = Test(**{"val": 42})
+    assert test.val == 42
+
+    with pytest.raises(ShiftError):
+        _ = Test(val=InvalidType)
+
+    with pytest.raises(ShiftError):
+        _ = Test(**{"val": InvalidType})

@@ -61,9 +61,19 @@ def test_do_processing():
     test = Test(val="hello there")
     assert test.val == "hello there"
 
+    class Test(Shift):
+        __do_processing__ = False
+        val: int
+
+        def __post_init__(self, info: ShiftInfo):
+            self.val = info.data["val"]
+
+    test = Test(val="hello there")
+    assert test.val == "hello there"
+
 # There's not a good way to test fail_fast because we can't read errors
 
-# def try_coerce_types() - todo
+# def try_coerce_types()
 
 def test_allow_private_field_setting():
     class Test(Shift):
@@ -74,6 +84,13 @@ def test_allow_private_field_setting():
 
     class Test(Shift):
         __shift_config__ = ShiftConfig(allow_private_field_setting=True)
+        _val: int
+
+    test = Test(_val=42)
+    assert test._val == 42
+
+    class Test(Shift):
+        __allow_private_field_setting__ = True
         _val: int
 
     test = Test(_val=42)
@@ -95,9 +112,25 @@ def test_include_default_fields_in_serialization():
     assert repr(test) == "Test(val=42)"
     assert test.serialize() == {"val": 42}
 
+    class Test(Shift):
+        __include_default_fields_in_serialization__ = True
+        val: int = 42
+
+    test = Test(val=42)
+    assert repr(test) == "Test(val=42)"
+    assert test.serialize() == {"val": 42}
+
 def test_include_private_fields_in_serialization():
     class Test(Shift):
         __shift_config__ = ShiftConfig(allow_private_field_setting=True)
+        _val: int
+
+    test = Test(_val=42)
+    assert repr(test) == "Test()"
+    assert test.serialize() == {}
+
+    class Test(Shift):
+        __allow_private_field_setting__ = True
         _val: int
 
     test = Test(_val=42)
@@ -108,6 +141,15 @@ def test_include_private_fields_in_serialization():
 
     class Test(Shift):
         __shift_config__ = shift_config
+        _val: int
+
+    test = Test(_val=42)
+    assert repr(test) == f"Test(__shift_config__={shift_config}, _val=42)"
+    assert serialize(test) == {"__shift_config__": serialize(shift_config), "_val": 42}
+
+    class Test(Shift):
+        __include_private_fields_in_serialization__ = True
+        __allow_private_field_setting__ = True
         _val: int
 
     test = Test(_val=42)

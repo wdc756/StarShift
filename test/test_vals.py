@@ -50,6 +50,16 @@ def test_inline_shift_config():
     assert not hasattr(test, "__shift_config__")
     assert get_shift_info(Test, test, {}).shift_config.verbosity == 0
 
+def test_ignore_private():
+    class Test(Shift):
+        _val: int
+
+        def __post_init__(self):
+            self._val = 42
+
+    test = Test()
+    assert test._val == 42
+
 def test_set_to_private():
     class Test(Shift):
         _val: int = 42
@@ -71,8 +81,7 @@ def test_shift_setter_to_private():
 
         @shift_setter('_private')
         def set_val(self, val):
-            self._private = self.val
+            self._private = 88
 
     test = Test(val=81)
-    print(test._private)
-    assert test._private == 81
+    assert test._private == 88
