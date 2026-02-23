@@ -8,6 +8,7 @@
 - Added `defer_transform`, `defer_validation`, `defer_set`, `defer_repr`, & `defer_serialize` fields to `ShiftField`
 - Added `shift_none_type_validator` and `shift_none_type_setter` to handle when type is `None` and val is missing
 - Reworked internal transform and repr processes to work the same as validate and serialize
+- Added `from __future__ import annotations` for backwards compatibility
 
 ### 0.4.6
 - Added defer key to ShiftField to make StarShift completely ignore fields
