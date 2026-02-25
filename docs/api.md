@@ -241,31 +241,40 @@ shift functions:
 
 ```python
 from starshift import Shift, ShiftFieldInfo, ShiftInfo, ShiftType
-from starshift import shift_all_of_single_validator, shift_all_of_serializer
+from starshift import shift_all_of_single_type_validator, shift_all_of_serializer
 from starshift import register_shift_type
 from typing import TypeVar, Generic
 
 T = TypeVar('T')
+
+
 class SimpleList(Generic[T]):
     def __init__(self, items=None):
         self._items = items if items is not None else []
+
     def __len__(self) -> int:
         return len(self._items)
+
     def __getitem__(self, index: int) -> T:
         return self._items[index]
+
     def __setitem__(self, index: int, value: T) -> None:
         self._items[index] = value
+
     def __iter__(self):
         return iter(self._items)
 
+
 simple_list_shift_type = ShiftType(
-    validator=shift_all_of_single_validator,
+    validator=shift_all_of_single_type_validator,
     serializer=shift_all_of_serializer
 )
 register_shift_type(SimpleList, simple_list_shift_type)
 
+
 class Class(Shift):
     val: SimpleList[int]
+
 
 # This works
 _ = Class(val=SimpleList([4, 5, 6, 1, 2, 3]))

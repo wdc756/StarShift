@@ -15,8 +15,8 @@ from .star_shift import shift_type_transformer, shift_forward_ref_type_transform
 ## Validators
 from .star_shift import shift_type_validator, shift_missing_type_validator, shift_base_type_validator
 from .star_shift import shift_none_type_validator, shift_any_type_validator, shift_one_of_val_type_validator
-from .star_shift import shift_one_of_type_validator, shift_all_of_single_validator, shift_all_of_many_validator
-from .star_shift import shift_all_of_pair_validator, shift_callable_validator, shift_shift_type_validator
+from .star_shift import shift_one_of_type_validator, shift_all_of_single_type_validator, shift_all_of_many_type_validator
+from .star_shift import shift_all_of_pair_type_validator, shift_callable_type_validator, shift_shift_type_validator
 from .star_shift import shift_forward_ref_type_validator, shift_shift_field_type_validator
 ## Setters
 from .star_shift import shift_type_setter, shift_shift_field_type_setter
@@ -24,7 +24,7 @@ from .star_shift import shift_type_setter, shift_shift_field_type_setter
 from .star_shift import shift_type_repr, shift_shift_field_type_repr
 ## Serializers
 from .star_shift import shift_type_serializer, shift_missing_type_serializer, shift_base_type_serializer
-from .star_shift import shift_all_of_serializer, shift_all_of_pair_serializer, shift_shift_type_serializer
+from .star_shift import shift_all_of_serializer, shift_all_of_pair_type_serializer, shift_shift_type_serializer
 from .star_shift import shift_forward_ref_type_serializer, shift_shift_field_type_serializer
 
 # Shift Classes

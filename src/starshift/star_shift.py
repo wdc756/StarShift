@@ -569,7 +569,7 @@ def shift_one_of_val_type_transformer(instance: Any, field_info: ShiftFieldInfo,
     return field_info.val
 
 # noinspection PyTypeChecker
-def shift_all_of_single_transformer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any:
+def shift_all_of_single_type_transformer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any:
     """
     Attempts to, for all field_info.val, transform field_info.val[i] as the type field_info.typ.args[0].
     Raises TypeMismatchError if any field_info.val is a different type than field_info.typ.args[0].
@@ -595,7 +595,7 @@ def shift_all_of_single_transformer(instance: Any, field_info: ShiftFieldInfo, s
     return field_info.val
 
 # noinspection PyTypeChecker
-def shift_all_of_many_transformer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any:
+def shift_all_of_many_type_transformer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any:
     """
     Attempts to, for all field_info.val, transform field_info.val[i] as the type field_info.typ.args[i].
     Raises TypeMismatchError if any field_info.val[i] is a different type than field_info.typ.args[i].
@@ -620,7 +620,7 @@ def shift_all_of_many_transformer(instance: Any, field_info: ShiftFieldInfo, shi
             raise TypeMismatchError(shift_info.model_name, f"Field `{field_info.name}` expected value at index {i} to be of type `{type(arg).__name__}`, but got `{type(val).__name__}`: {e}")
     return field_info.val
 
-def shift_all_of_pair_transformer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any:
+def shift_all_of_pair_type_transformer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any:
     """
     Attempts to, for all field_info.val, transform field_info.val[i].key as field_info.typ.args[0] and transform field_info.val[i].val as field_info.typ.args[1].
     Raises TypeMismatchError if any field_info.val[i] is a different type than field_info.typ.args[0] or field_info.typ.args[1].
@@ -654,7 +654,7 @@ def shift_all_of_pair_transformer(instance: Any, field_info: ShiftFieldInfo, shi
 
     return new_val
 
-def shift_callable_transformer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any:
+def shift_callable_type_transformer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any:
     """
     Attempts to check if value is callable and has a readable signature.
     Raises TypeMismatchError if value is not callable or has an unreadable signature.
@@ -822,7 +822,7 @@ def shift_one_of_val_type_validator(instance: Any, field_info: ShiftFieldInfo, s
         raise TypeMismatchError(shift_info.model_name, f"Field `{field_info.name}` expected one of values `{args}`, got `{field_info.val}`")
     return True
 
-def shift_all_of_single_validator(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> bool:
+def shift_all_of_single_type_validator(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> bool:
     """
     Returns if, for all field_info.val, field_info.val[i] is the same type as field_info.typ.args[0].
     Raises TypeMismatchError if any field_info.val is a different type than field_info.typ.args[0].
@@ -849,7 +849,7 @@ def shift_all_of_single_validator(instance: Any, field_info: ShiftFieldInfo, shi
     return True
 
 # noinspection PyTypeChecker
-def shift_all_of_many_validator(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> bool:
+def shift_all_of_many_type_validator(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> bool:
     """
     Returns if, for all field_info.val, field_info.val[i] is the same type as field_info.typ.args[i].
     Raises TypeMismatchError if any field_info.val[i] is a different type than field_info.typ.args[i].
@@ -875,7 +875,7 @@ def shift_all_of_many_validator(instance: Any, field_info: ShiftFieldInfo, shift
             raise TypeMismatchError(shift_info.model_name, f"Field `{field_info.name}` expected value at index {i} to be of type `{type(arg).__name__}`, but got `{type(val).__name__}`: {e}")
     return True
 
-def shift_all_of_pair_validator(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> bool:
+def shift_all_of_pair_type_validator(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> bool:
     """
     Returns if, for all field_info.val, field_info.val[i].key is the same type as field_info.typ.args[0] and field_info.val[i].val is the same type as field_info.typ.args[1].
     Raises TypeMismatchError if any field_info.val[i] is a different type than field_info.typ.args[0] or field_info.typ.args[1].
@@ -908,7 +908,7 @@ def shift_all_of_pair_validator(instance: Any, field_info: ShiftFieldInfo, shift
 
     return True
 
-def shift_callable_validator(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> bool:
+def shift_callable_type_validator(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> bool:
     """
     Returns if field.val is callable and matches the expected signature.
     Raises TypeMismatchError if field.val is not callable or has an invalid signature.
@@ -1112,7 +1112,7 @@ def shift_one_of_val_type_setter(instance: Any, field_info: ShiftFieldInfo, shif
     return field_info.val
 
 # noinspection PyTypeChecker
-def shift_all_of_single_setter(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any:
+def shift_all_of_single_type_setter(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any:
     """
     Attempts to, for all field_info.val, set field_info.val[i] as the type field_info.typ.args[0].
     Raises TypeMismatchError if any field_info.val is a different type than field_info.typ.args[0].
@@ -1138,7 +1138,7 @@ def shift_all_of_single_setter(instance: Any, field_info: ShiftFieldInfo, shift_
     return field_info.val
 
 # noinspection PyTypeChecker
-def shift_all_of_many_setter(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any:
+def shift_all_of_many_type_setter(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any:
     """
     Attempts to, for all field_info.val, set field_info.val[i] as the type field_info.typ.args[i].
     Raises TypeMismatchError if any field_info.val[i] is a different type than field_info.typ.args[i].
@@ -1163,7 +1163,7 @@ def shift_all_of_many_setter(instance: Any, field_info: ShiftFieldInfo, shift_in
             raise TypeMismatchError(shift_info.model_name, f"Field `{field_info.name}` expected value at index {i} to be of type `{type(arg).__name__}`, but got `{type(val).__name__}`: {e}")
     return field_info.val
 
-def shift_all_of_pair_setter(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any:
+def shift_all_of_pair_type_setter(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any:
     """
     Attempts to, for all field_info.val, set field_info.val[i].key as field_info.typ.args[0] and set field_info.val[i].val as field_info.typ.args[1].
     Raises TypeMismatchError if any field_info.val[i] is a different type than field_info.typ.args[0] or field_info.typ.args[1].
@@ -1197,7 +1197,7 @@ def shift_all_of_pair_setter(instance: Any, field_info: ShiftFieldInfo, shift_in
 
     return new_val
 
-def shift_callable_setter(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any:
+def shift_callable_type_setter(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any:
     """
     Attempts to check if value is callable and has a readable signature.
     Raises TypeMismatchError if value is not callable or has an unreadable signature.
@@ -1248,7 +1248,7 @@ def shift_shift_type_setter(instance: Any, field_info: ShiftFieldInfo, shift_inf
     try:
         if isinstance(field_info.val, Shift) or issubclass(field_info.val, Shift):
             return field_info.val
-        if isinstance(field_info.val, dict):
+        if isinstance(field_info.val, dict) and issubclass(field_info.typ, Shift):
             return field_info.typ(**field_info.val) # Assume typ is Shift subclass
     except Exception as e:
         raise TypeMismatchError(shift_info.model_name, f"Field `{field_info.name}` could not inspect value: {e}")
@@ -1362,7 +1362,7 @@ def shift_one_of_val_type_repr(instance: Any, field_info: ShiftFieldInfo, shift_
     return repr(field_info.val)
 
 # noinspection PyTypeChecker
-def shift_all_of_single_repr(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> str | None:
+def shift_all_of_single_type_repr(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> str | None:
     """
     Attempts to, for all field_info.val, repr field_info.val[i] as the type field_info.typ.args[0].
     Raises TypeMismatchError if any field_info.val is a different type than field_info.typ.args[0].
@@ -1388,7 +1388,7 @@ def shift_all_of_single_repr(instance: Any, field_info: ShiftFieldInfo, shift_in
     return repr(field_info.val)
 
 # noinspection PyTypeChecker
-def shift_all_of_many_repr(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> str | None:
+def shift_all_of_many_type_repr(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> str | None:
     """
     Attempts to, for all field_info.val, repr field_info.val[i] as the type field_info.typ.args[i].
     Raises TypeMismatchError if any field_info.val[i] is a different type than field_info.typ.args[i].
@@ -1413,7 +1413,7 @@ def shift_all_of_many_repr(instance: Any, field_info: ShiftFieldInfo, shift_info
             raise TypeMismatchError(shift_info.model_name, f"Field `{field_info.name}` expected value at index {i} to be of type `{type(arg).__name__}`, but got `{type(val).__name__}`: {e}")
     return repr(field_info.val)
 
-def shift_all_of_pair_repr(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> str | None:
+def shift_all_of_pair_type_repr(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> str | None:
     """
     Attempts to, for all field_info.val, repr field_info.val[i].key as field_info.typ.args[0] and repr field_info.val[i].val as field_info.typ.args[1].
     Raises TypeMismatchError if any field_info.val[i] is a different type than field_info.typ.args[0] or field_info.typ.args[1].
@@ -1447,7 +1447,7 @@ def shift_all_of_pair_repr(instance: Any, field_info: ShiftFieldInfo, shift_info
 
     return repr(new_val)
 
-def shift_callable_repr(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> str | None:
+def shift_callable_type_repr(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> str | None:
     """
     Attempts to check if value is callable and has a readable signature.
     Raises TypeMismatchError if value is not callable or has an unreadable signature.
@@ -1488,6 +1488,19 @@ def shift_forward_ref_type_repr(instance: Any, field_info: ShiftFieldInfo, shift
         return shift_type_repr(instance, field_info, shift_info)
     except Exception as e:
         raise TypeMismatchError(shift_info.model_name, f"Field `{field_info.name}` could not resolve forward reference `{field_info.typ}`: {e}")
+    
+def shift_shift_type_repr(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> str | None:
+    """
+    When the field.val is a Shift subclass instance return the repred class
+    Raises TypeMismatchError if the field.val is not a Shift subclass, or class construction fails.
+    """
+
+    try:
+        if isinstance(field_info.val, Shift) or issubclass(field_info.val, Shift):
+            return repr(field_info.val)
+    except Exception as e:
+        raise TypeMismatchError(shift_info.model_name, f"Field `{field_info.name}` could not inspect value: {e}")
+    raise TypeMismatchError(shift_info.model_name, f"Field `{field_info.name}` expected Shift subclass or dict, got `{type(field_info.val).__name__}`")
 
 def shift_shift_field_type_repr(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> str | None:
     """
@@ -1596,7 +1609,7 @@ def shift_one_of_val_type_serializer(instance: Any, field_info: ShiftFieldInfo, 
     return field_info.val
 
 # noinspection PyTypeChecker
-def shift_all_of_single_serializer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any | None:
+def shift_all_of_single_type_serializer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any | None:
     """
     Attempts to, for all field_info.val, serialize field_info.val[i] as the type field_info.typ.args[0].
     Raises TypeMismatchError if any field_info.val is a different type than field_info.typ.args[0].
@@ -1622,7 +1635,7 @@ def shift_all_of_single_serializer(instance: Any, field_info: ShiftFieldInfo, sh
     return field_info.val
 
 # noinspection PyTypeChecker
-def shift_all_of_many_serializer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any | None:
+def shift_all_of_many_type_serializer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any | None:
     """
     Attempts to, for all field_info.val, serialize field_info.val[i] as the type field_info.typ.args[i].
     Raises TypeMismatchError if any field_info.val[i] is a different type than field_info.typ.args[i].
@@ -1647,7 +1660,7 @@ def shift_all_of_many_serializer(instance: Any, field_info: ShiftFieldInfo, shif
             raise TypeMismatchError(shift_info.model_name, f"Field `{field_info.name}` expected value at index {i} to be of type `{type(arg).__name__}`, but got `{type(val).__name__}`: {e}")
     return field_info.val
 
-def shift_all_of_pair_serializer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any | None:
+def shift_all_of_pair_type_serializer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any | None:
     """
     Attempts to, for all field_info.val, serialize field_info.val[i].key as field_info.typ.args[0] and serialize field_info.val[i].val as field_info.typ.args[1].
     Raises TypeMismatchError if any field_info.val[i] is a different type than field_info.typ.args[0] or field_info.typ.args[1].
@@ -1681,7 +1694,7 @@ def shift_all_of_pair_serializer(instance: Any, field_info: ShiftFieldInfo, shif
 
     return new_val
 
-def shift_callable_serializer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any | None:
+def shift_callable_type_serializer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any | None:
     """
     Attempts to check if value is callable and has a readable signature.
     Raises TypeMismatchError if value is not callable or has an unreadable signature.
@@ -1722,6 +1735,19 @@ def shift_forward_ref_type_serializer(instance: Any, field_info: ShiftFieldInfo,
         return shift_type_serializer(instance, field_info, shift_info)
     except Exception as e:
         raise TypeMismatchError(shift_info.model_name, f"Field `{field_info.name}` could not resolve forward reference `{field_info.typ}`: {e}")
+    
+def shift_shift_type_serializer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any | None:
+    """
+    When the field.val is a Shift subclass instance return the serialized class
+    Raises TypeMismatchError if the field.val is not a Shift subclass, or class construction fails.
+    """
+
+    try:
+        if isinstance(field_info.val, Shift) or issubclass(field_info.val, Shift):
+            return serialize(field_info.val)
+    except Exception as e:
+        raise TypeMismatchError(shift_info.model_name, f"Field `{field_info.name}` could not inspect value: {e}")
+    raise TypeMismatchError(shift_info.model_name, f"Field `{field_info.name}` expected Shift subclass or dict, got `{type(field_info.val).__name__}`")
 
 def shift_shift_field_type_serializer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any | None:
     """
@@ -1817,81 +1843,55 @@ def get_shift_type(typ: Any) -> ShiftType | None:
 ## Builtin Types
 ############################################################
 
-missing_shift_type = ShiftType(shift_base_type_transformer,
-                               shift_missing_type_validator, shift_type_setter,
-                               shift_type_repr, shift_missing_type_serializer)
-_base_shift_type = ShiftType(shift_base_type_transformer,
-                             shift_base_type_validator, shift_type_setter,
-                             shift_type_repr, shift_base_type_serializer)
-_none_shift_type = ShiftType(shift_base_type_transformer,
-                             shift_none_type_validator, shift_type_setter,
-                             shift_type_repr, shift_base_type_serializer)
-_any_shift_type = ShiftType(shift_base_type_transformer,
-                            shift_any_type_validator, shift_type_setter,
-                            shift_type_repr, shift_base_type_serializer)
-_one_of_val_shift_type = ShiftType(shift_base_type_transformer,
-                                   shift_one_of_val_type_validator, shift_type_setter,
-                                   shift_type_repr, shift_base_type_serializer)
-_one_of_shift_type = ShiftType(shift_one_of_type_transformer,
-                               shift_one_of_type_validator, shift_type_setter,
-                               shift_type_repr, shift_base_type_serializer)
-_all_of_single_shift_type = ShiftType(shift_all_of_single_transformer,
-                                      shift_all_of_single_validator, shift_type_setter,
-                                      shift_type_repr, shift_all_of_serializer)
-_all_of_many_shift_type = ShiftType(shift_all_of_many_transformer,
-                                    shift_all_of_many_validator, shift_type_setter,
-                                    shift_type_repr, shift_all_of_serializer)
-_all_of_pair_shift_type = ShiftType(shift_all_of_pair_transformer,
-                                    shift_all_of_pair_validator, shift_type_setter,
-                                    shift_type_repr, shift_all_of_pair_serializer)
-_shift_callable_shift_type = ShiftType(shift_base_type_transformer,
-                                       shift_callable_validator, shift_type_setter,
-                                       shift_type_repr, shift_base_type_serializer)
-_shift_shift_type = ShiftType(shift_base_type_transformer,
-                              shift_shift_type_validator, shift_type_setter,
-                              shift_type_repr, shift_shift_type_serializer)
-_forward_ref_shift_type = ShiftType(shift_forward_ref_type_transformer,
-                                    shift_forward_ref_type_validator, shift_type_setter,
-                                    shift_type_repr, shift_forward_ref_type_serializer)
-_shift_field_shift_type = ShiftType(shift_shift_field_type_transformer,
-                                    shift_shift_field_type_validator, shift_shift_field_type_setter,
-                                    shift_shift_field_type_repr, shift_shift_field_type_serializer)
+missing_shift_type = ShiftType(shift_missing_type_transformer, shift_missing_type_validator, shift_missing_type_setter, shift_missing_type_repr, shift_missing_type_serializer)
+base_shift_type = ShiftType(shift_base_type_transformer, shift_base_type_validator, shift_base_type_setter, shift_base_type_repr, shift_base_type_serializer)
+none_shift_type = ShiftType(shift_none_type_transformer, shift_none_type_validator, shift_none_type_setter, shift_none_type_repr, shift_none_type_serializer)
+any_shift_type = ShiftType(shift_any_type_transformer, shift_any_type_validator, shift_any_type_setter, shift_any_type_repr, shift_any_type_serializer)
+one_of_val_shift_type = ShiftType(shift_one_of_val_type_transformer, shift_one_of_val_type_validator, shift_one_of_type_setter, shift_one_of_type_repr, shift_one_of_type_serializer)
+one_of_shift_type = ShiftType(shift_one_of_type_transformer, shift_one_of_type_validator, shift_one_of_type_setter, shift_one_of_type_repr, shift_one_of_type_serializer)
+all_of_single_shift_type = ShiftType(shift_all_of_single_type_transformer, shift_all_of_single_type_validator, shift_all_of_single_type_setter, shift_all_of_single_type_repr, shift_all_of_single_type_serializer)
+all_of_many_shift_type = ShiftType(shift_all_of_many_type_transformer, shift_all_of_many_type_validator, shift_all_of_many_type_setter, shift_all_of_many_type_repr, shift_all_of_many_type_serializer)
+all_of_pair_shift_type = ShiftType(shift_all_of_pair_type_transformer, shift_all_of_pair_type_validator, shift_all_of_pair_type_setter, shift_all_of_pair_type_repr, shift_all_of_pair_type_serializer)
+shift_callable_shift_type = ShiftType(shift_callable_type_transformer, shift_callable_type_validator, shift_callable_type_setter, shift_callable_type_repr, shift_callable_type_serializer)
+forward_ref_shift_type = ShiftType(shift_forward_ref_type_transformer, shift_forward_ref_type_validator, shift_forward_ref_type_setter, shift_forward_ref_type_repr, shift_forward_ref_type_serializer)
+shift_shift_type = ShiftType(shift_shift_type_transformer, shift_shift_type_validator, shift_shift_type_setter, shift_shift_type_repr, shift_shift_type_serializer)
+shift_field_shift_type = ShiftType(shift_shift_field_type_transformer, shift_shift_field_type_validator, shift_shift_field_type_setter, shift_shift_field_type_repr, shift_shift_field_type_serializer)
 
 _shift_builtin_types: dict[Type, ShiftType] = {
     Missing: missing_shift_type,
 
-    int: _base_shift_type,
-    bool: _base_shift_type,
-    float: _base_shift_type,
-    str: _base_shift_type,
-    bytes: _base_shift_type,
-    bytearray: _base_shift_type,
+    int: base_shift_type,
+    bool: base_shift_type,
+    float: base_shift_type,
+    str: base_shift_type,
+    bytes: base_shift_type,
+    bytearray: base_shift_type,
 
-    type(None): _none_shift_type,
+    type(None): none_shift_type,
 
-    Any: _any_shift_type,
+    Any: any_shift_type,
 
-    list: _all_of_single_shift_type,
-    set: _all_of_single_shift_type,
-    frozenset: _all_of_single_shift_type,
+    list: all_of_single_shift_type,
+    set: all_of_single_shift_type,
+    frozenset: all_of_single_shift_type,
 
-    tuple: _all_of_many_shift_type,
+    tuple: all_of_many_shift_type,
 
-    Callable: _shift_callable_shift_type,
+    Callable: shift_callable_shift_type,
 
-    dict: _all_of_pair_shift_type,
+    dict: all_of_pair_shift_type,
 
-    Union: _one_of_shift_type,
-    Optional: _one_of_shift_type,
+    Union: one_of_shift_type,
+    Optional: one_of_shift_type,
 
-    Literal: _one_of_val_shift_type,
+    Literal: one_of_val_shift_type,
 
     # This is registered after Shift is defined
-    #Shift: _shift_shift_type,
+    #Shift: shift_shift_type,
 
-    ForwardRef: _forward_ref_shift_type,
+    ForwardRef: forward_ref_shift_type,
 
-    ShiftField: _shift_field_shift_type
+    ShiftField: shift_field_shift_type
 }
 
 
@@ -2675,7 +2675,7 @@ def reset_starshift_globals() -> None:
     """Reset all global registers and values"""
     _shift_types.clear()
     _shift_types.update(_shift_builtin_types)
-    _shift_types[Shift] = _shift_shift_type
+    _shift_types[Shift] = shift_shift_type
     _resolved_forward_refs.clear()
     _shift_info_registry.clear()
     _shift_functions.clear()
