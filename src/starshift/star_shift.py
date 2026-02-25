@@ -109,8 +109,8 @@ _SimpleRepr: TypeAlias = Callable[[Any, Any], str | None]
 _AdvancedRepr: TypeAlias = Callable[[Any, "ShiftFieldInfo", "ShiftInfo"], str | None]
 _Repr: TypeAlias = _SimpleRepr | _AdvancedRepr
 
-_SimpleSerializer: TypeAlias = Callable[[Any, Any], Any]
-_AdvancedSerializer: TypeAlias = Callable[[Any, "ShiftFieldInfo", "ShiftInfo"], Any]
+_SimpleSerializer: TypeAlias = Callable[[Any, Any], Any | None]
+_AdvancedSerializer: TypeAlias = Callable[[Any, "ShiftFieldInfo", "ShiftInfo"], Any | None]
 _Serializer: TypeAlias = _SimpleSerializer | _AdvancedSerializer
 
 _Any_Decorator: TypeAlias = _Transformer | _Validator | _Setter | _Repr | _Serializer
@@ -1498,7 +1498,7 @@ def shift_shift_field_type_repr(instance: Any, field_info: ShiftFieldInfo, shift
     if not isinstance(field_info.default, ShiftField):
         raise TypeMismatchError(shift_info.model_name, f"Field `{field_info.name}` expected ShiftField default, got `{type(field_info.default).__name__}`")
 
-    if field_info.default.defer or field_info.default.defer_repr or field_info.default.repr_exclude:
+    if field_info.default.defer or field_info.default.defer_repr:
         return None
 
     if field_info.default.repr_func is not None:
@@ -1521,14 +1521,47 @@ def shift_type_repr(instance: Any, field_info: ShiftFieldInfo, shift_info: Shift
 ### Serialize
 #############################
 
-def shift_base_type_serializer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any:
+def shift_missing_type_serializer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any | None:
     """
-    Returns the serialized form of field_info.val
+    Returns field_info.val when val is not Missing (no type hint but value was set)
+    Raises TypeMismatchError if field_info.val is Missing
     """
 
+    if field_info.val is Missing:
+        raise TypeMismatchError(shift_info.model_name, f"Field `{field_info.name}` expected a value, got `MISSING`")
     return field_info.val
 
-def shift_one_of_type_serializer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any:
+def shift_base_type_serializer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any | None:
+    """
+    Returns field_info.val when val is not MISSING.
+    Raises TypeMismatchError if field_info.val is a different type than field_info.typ.
+    """
+
+    if not isinstance(field_info.val, field_info.typ):
+        raise TypeMismatchError(shift_info.model_name, f"Field `{field_info.name}` expected type `{field_info.typ.__name__}`, got `{type(field_info.val).__name__}`")
+    return field_info.val
+
+def shift_none_type_serializer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any | None:
+    """
+    Returns field_info.val when val is None or Missing
+    Raises TypeMismatchError if field_info.val is not None or Missing
+    """
+
+    if field_info.val is not None and field_info.val is not Missing:
+        raise TypeMismatchError(shift_info.model_name, f"Field `{field_info.name}` expected type `None` or Missing, got `{type(field_info.val).__name__}`")
+    return field_info.val
+
+def shift_any_type_serializer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any | None:
+    """
+    Returns field_info.val when val is not MISSING.
+    Raises TypeMismatchError if field_info.val is MISSING.
+    """
+
+    if field_info.val is Missing:
+        raise TypeMismatchError(shift_info.model_name, f"Field `{field_info.name}` expected a value, got `MISSING`")
+    return field_info.val
+
+def shift_one_of_type_serializer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any | None:
     """
     Attempts to serialize field_info.val for each type in field_info.typ.args, returning the first successful serialized value.
     Raises TypeMismatchError if no type in field_info.typ.args matches field_info.val.
@@ -1536,8 +1569,9 @@ def shift_one_of_type_serializer(instance: Any, field_info: ShiftFieldInfo, shif
 
     args = field_info.typ.args
     if not args:
-        return True
+        return field_info.val
 
+    # One arg must match
     for arg in args:
         try:
             tmp_field_info = ShiftFieldInfo(f"{field_info.name}.{type(arg).__name__}", arg, field_info.val)
@@ -1546,9 +1580,170 @@ def shift_one_of_type_serializer(instance: Any, field_info: ShiftFieldInfo, shif
             pass
     raise TypeMismatchError(shift_info.model_name, f"Field `{field_info.name}` expected one of types `{args}`, got `{type(field_info.val).__name__}`")
 
-def shift_type_serializer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any:
+def shift_one_of_val_type_serializer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any | None:
     """
-    Calls the type serializer for a field, returning the serialized form of the field value.
+    Returns field_info.val if val is in field_info.typ.args.
+    Raises TypeMismatchError if no type in field_info.typ.args matches field_info.val.
+    """
+
+    args = get_args(field_info.typ)
+    if not args:
+        return field_info.val
+
+    # One val must match
+    if not field_info.val in args:
+        raise TypeMismatchError(shift_info.model_name, f"Field `{field_info.name}` expected one of values `{args}`, got `{field_info.val}`")
+    return field_info.val
+
+# noinspection PyTypeChecker
+def shift_all_of_single_serializer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any | None:
+    """
+    Attempts to, for all field_info.val, serialize field_info.val[i] as the type field_info.typ.args[0].
+    Raises TypeMismatchError if any field_info.val is a different type than field_info.typ.args[0].
+    """
+
+    args = get_args(field_info.typ)
+    if not args:
+        return field_info.val
+
+    # Must have one arg and val must be list-like
+    if len(args) != 1:
+        raise TypeMismatchError(shift_info.model_name, f"Field `{field_info.name}` expected one type arg, got `{args}`")
+    if not isinstance(field_info.val, Iterable):
+        raise TypeMismatchError(shift_info.model_name, f"Field `{field_info.name}` expected value to be list-like, got `{field_info.val}`")
+
+    # All values must be of type args[0]
+    for i, val in enumerate(field_info.val):
+        tmp_field_info = ShiftFieldInfo(f"{field_info.name}.{type(args[0].__name__)[i]}", args[0], val)
+        try:
+            field_info.val[i] = shift_type_serializer(instance, tmp_field_info, shift_info)
+        except TypeMismatchError:
+            raise TypeMismatchError(shift_info.model_name, f"Field `{field_info.name}` expected all values to be of type `{type(args[0].__name__)}`, but got `{type(val).__name__}` at index {i}")
+    return field_info.val
+
+# noinspection PyTypeChecker
+def shift_all_of_many_serializer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any | None:
+    """
+    Attempts to, for all field_info.val, serialize field_info.val[i] as the type field_info.typ.args[i].
+    Raises TypeMismatchError if any field_info.val[i] is a different type than field_info.typ.args[i].
+    """
+
+    args = get_args(field_info.typ)
+    if not args:
+        return field_info.val
+
+    # Val must be list-like, and must have same len as args
+    if not isinstance(field_info.val, Iterable):
+        raise TypeMismatchError(shift_info.model_name, f"Field `{field_info.name}` expected value to be list-like, got `{field_info.val}`")
+    if len(field_info.val) != len(args):
+        raise TypeMismatchError(shift_info.model_name, f"Field `{field_info.name}` expected {len(args)} values, got {len(field_info.val)}")
+
+    # All values must be of type args[i]
+    for i, (val, arg) in enumerate(zip(field_info.val, args)):
+        tmp_field_info = ShiftFieldInfo(f"{field_info.name}.{type(arg).__name__}", arg, val)
+        try:
+            field_info.val[i] = shift_type_serializer(instance, tmp_field_info, shift_info)
+        except TypeMismatchError as e:
+            raise TypeMismatchError(shift_info.model_name, f"Field `{field_info.name}` expected value at index {i} to be of type `{type(arg).__name__}`, but got `{type(val).__name__}`: {e}")
+    return field_info.val
+
+def shift_all_of_pair_serializer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any | None:
+    """
+    Attempts to, for all field_info.val, serialize field_info.val[i].key as field_info.typ.args[0] and serialize field_info.val[i].val as field_info.typ.args[1].
+    Raises TypeMismatchError if any field_info.val[i] is a different type than field_info.typ.args[0] or field_info.typ.args[1].
+    """
+
+    args = get_args(field_info.typ)
+    if not args:
+        return field_info.val
+
+    # Must be dict-like
+    if not hasattr(field_info.val, "items"):
+        raise TypeMismatchError(shift_info.model_name, f"Field `{field_info.name}` expected value to be dict-like, got `{field_info.val}`")
+
+    # All key-val pairs must match type
+    new_val = {}
+    for i, (key, val) in enumerate(field_info.val.items()):
+        try:
+            tmp_field_info = ShiftFieldInfo(f"{field_info.name}.{type(key).__name__}", args[0], key)
+            key = shift_type_serializer(instance, tmp_field_info, shift_info)
+        except TypeMismatchError as e:
+            raise TypeMismatchError(shift_info.model_name, f"Field `{field_info.name}` expected key at index {i} to be of type `{type(args[0].__name__)}`, but got `{type(key).__name__}`: {e}")
+
+        try:
+            if len(args) > 1:
+                tmp_field_info = ShiftFieldInfo(f"{field_info.name}.{type(val).__name__}", args[1], val)
+                new_val[key] = shift_type_serializer(instance, tmp_field_info, shift_info)
+            else:
+                new_val[key] = val
+        except TypeMismatchError as e:
+            raise TypeMismatchError(shift_info.model_name, f"Field `{field_info.name}` expected val at index {i} to be of type `{type(args[1].__name__)}`, but got `{type(val).__name__}`: {e}")
+
+    return new_val
+
+def shift_callable_serializer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any | None:
+    """
+    Attempts to check if value is callable and has a readable signature.
+    Raises TypeMismatchError if value is not callable or has an unreadable signature.
+    """
+
+    args = get_args(field_info.typ)
+    if not args:
+        return field_info.val
+
+    # Value must be callable
+    if not callable(field_info.val):
+        raise TypeMismatchError(shift_info.model_name, f"Field `{field_info.name}` expected callable, got `{type(field_info.val).__name__}`")
+    if len(args) != 2:
+        raise TypeMismatchError(shift_info.model_name, f"Field `{field_info.name}` expected type signature `(param_types, return_type)`, got `{args}`")
+
+    try:
+        sig = inspect.signature(field_info.val)
+    except (ValueError, TypeError):
+        raise TypeMismatchError(shift_info.model_name, f"Field `{field_info.name}` could not inspect function signature")
+    return field_info.val
+
+def shift_forward_ref_type_serializer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any | None:
+    """
+    Attempts to resolve forward references for field.typ, then calls serializer for the resolved type.
+    Raises TypeMismatchError if field.typ cannot be resolved.
+    """
+
+    # Check cache first
+    if field_info.typ in _resolved_forward_refs:
+        field_info.typ = _resolved_forward_refs[field_info.typ]
+        return shift_type_repr(instance, field_info, shift_info)
+
+    # Attempt to resolve the forward ref
+    try:
+        resolved = resolve_forward_ref(field_info.typ, shift_info)
+        register_forward_ref(field_info.typ, resolved)
+        field_info.typ = resolved
+        return shift_type_serializer(instance, field_info, shift_info)
+    except Exception as e:
+        raise TypeMismatchError(shift_info.model_name, f"Field `{field_info.name}` could not resolve forward reference `{field_info.typ}`: {e}")
+
+def shift_shift_field_type_serializer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any | None:
+    """
+    Serializes a field according to ShiftField parameters.
+    Raises TypeMismatchError if the field is not a ShiftField or repr fails.
+    """
+
+    if not isinstance(field_info.default, ShiftField):
+        raise TypeMismatchError(shift_info.model_name, f"Field `{field_info.name}` expected ShiftField default, got `{type(field_info.default).__name__}`")
+
+    if field_info.default.defer or field_info.default.defer_serialize:
+        return None
+
+    if field_info.default.serializer is not None:
+        return shift_function_wrapper(field_info, shift_info, field_info.default.serializer)
+
+    tmp_field = ShiftFieldInfo(f"{field_info.name}.{field_info.default.type.__name__}", field_info.default.type, field_info.val)
+    return shift_type_serializer(instance, tmp_field, shift_info)
+
+def shift_type_serializer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any | None:
+    """
+    Calls the type serializer for a field, returning the serialized value.
     Raises UnknownShiftTypeError if the field type is not registered in the ShiftTypes registry.
     """
 
@@ -1899,7 +2094,7 @@ def _repr_field(field: ShiftFieldInfo, info: ShiftInfo) -> str:
         return ""
 
     # Run type repr
-    res = shift_type_repr(field.val, field, info)
+    res = shift_type_repr(info.instance, field, info)
     if len(res) and isinstance(field.default, ShiftField):
         if field.default.repr_exclude:
             return ""
@@ -1922,7 +2117,7 @@ def _repr(info: ShiftInfo) -> str:
 ## Serialize
 ############################################################
 
-def _serialize_field(field: ShiftFieldInfo, info: ShiftInfo) -> dict[str, Any] | None:
+def _serialize_field(field: ShiftFieldInfo, info: ShiftInfo) -> dict | None:
     # If field serializer, call
     if field.name in info.serializers:
         return shift_function_wrapper(field, info, info.serializers[field.name])
@@ -1931,10 +2126,20 @@ def _serialize_field(field: ShiftFieldInfo, info: ShiftInfo) -> dict[str, Any] |
     if field.name.startswith("_") and not info.shift_config.include_private_fields_in_serialization:
         return None
 
-    # Run type serializer
-    return { field.name: shift_type_serializer(field.val, field, info) }
+    # If field is default value and config set to exclude, return default value repr
+    if field.val == field.default and not info.shift_config.include_default_fields_in_serialization:
+        return None
 
-def _serialize(info: ShiftInfo) -> dict[str, Any]:
+    # Run type serializer
+    res = shift_type_serializer(info.instance, field, info)
+    if res is not None and isinstance(field.default, ShiftField):
+        if field.default.serializer_exclude:
+            return None
+        if field.default.serialize_as:
+            return {field.default.serialize_as: res}
+    return {field.name: res}
+
+def _serialize(info: ShiftInfo) -> dict:
     result = {}
     if info.shift_config.include_private_fields_in_serialization and (info.shift_config != DEFAULT_SHIFT_CONFIG or info.shift_config.include_default_fields_in_serialization):
         result["__shift_config__"] = serialize(info.shift_config)
