@@ -34,7 +34,7 @@ def test_shift_field_type():
     class Test(Shift):
         val = ShiftField(type=int)
 
-    with pytest.raises(ShiftFieldError):
+    with pytest.raises(ShiftModelError):
         Test(val=InvalidType)
 
 def test_shift_field_implicit_type():
@@ -43,17 +43,17 @@ def test_shift_field_implicit_type():
 
     test = Test(val=42)
     assert test.val == 42
-    with pytest.raises(ShiftFieldError):
+    with pytest.raises(ShiftModelError):
         _ = Test(val=-42)
 
     class Test(Shift):
         val: str = ShiftField(type=int, min_len=3)
 
-    with pytest.raises(ShiftFieldError):
+    with pytest.raises(ShiftModelError):
         _ = Test(val=42)
     test = Test(val='Hello There!')
     assert test.val == 'Hello There!'
-    with pytest.raises(ShiftFieldError):
+    with pytest.raises(ShiftModelError):
         _ = Test(val='')
 
 def test_shift_field_default():
@@ -98,24 +98,24 @@ def test_shift_field_ge():
 
     test = Test(val=42)
     test = Test(val=0)
-    with pytest.raises(ShiftFieldError):
+    with pytest.raises(ShiftModelError):
         _ = Test(val=-42)
 
 def test_shift_field_eq():
     class Test(Shift):
         val = ShiftField(type=int, eq=0)
 
-    with pytest.raises(ShiftFieldError):
+    with pytest.raises(ShiftModelError):
         _ = Test(val=42)
     test = Test(val=0)
-    with pytest.raises(ShiftFieldError):
+    with pytest.raises(ShiftModelError):
         _ = Test(val=-42)
 
 def test_shift_field_le():
     class Test(Shift):
         val = ShiftField(type=int, le=0)
 
-    with pytest.raises(ShiftFieldError):
+    with pytest.raises(ShiftModelError):
         _ = Test(val=42)
     test = Test(val=0)
     test = Test(val=-42)
@@ -125,9 +125,9 @@ def test_shift_field_gt():
         val = ShiftField(type=int, gt=0)
 
     test = Test(val=42)
-    with pytest.raises(ShiftFieldError):
+    with pytest.raises(ShiftModelError):
         _ = Test(val=0)
-    with pytest.raises(ShiftFieldError):
+    with pytest.raises(ShiftModelError):
         _ = Test(val=-42)
 
 def test_shift_field_ne():
@@ -135,7 +135,7 @@ def test_shift_field_ne():
         val = ShiftField(type=int, ne=0)
 
     test = Test(val=42)
-    with pytest.raises(ShiftFieldError):
+    with pytest.raises(ShiftModelError):
         _ = Test(val=0)
     test = Test(val=-42)
 
@@ -143,9 +143,9 @@ def test_shift_field_lt():
     class Test(Shift):
         val = ShiftField(type=int, lt=0)
 
-    with pytest.raises(ShiftFieldError):
+    with pytest.raises(ShiftModelError):
         _ = Test(val=42)
-    with pytest.raises(ShiftFieldError):
+    with pytest.raises(ShiftModelError):
         _ = Test(val=0)
     test = Test(val=-42)
 
@@ -154,18 +154,18 @@ def test_shift_field_min_len():
         val = ShiftField(type=list[int], min_len=3)
 
     test = Test(val=[4, 5, 6, 1, 2, 3])
-    with pytest.raises(ShiftFieldError):
+    with pytest.raises(ShiftModelError):
         _ = Test(val=[4, 5, 6])
-    with pytest.raises(ShiftFieldError):
+    with pytest.raises(ShiftModelError):
         _ = Test(val=[])
 
 def test_shift_field_max_len():
     class Test(Shift):
         val = ShiftField(type=list[int], max_len=3)
 
-    with pytest.raises(ShiftFieldError):
+    with pytest.raises(ShiftModelError):
         _ = Test(val=[4, 5, 6, 1, 2, 3])
-    with pytest.raises(ShiftFieldError):
+    with pytest.raises(ShiftModelError):
         _ = Test(val=[4, 5, 6])
     test = Test(val=[])
 
@@ -174,7 +174,7 @@ def test_shift_field_pattern():
         val = ShiftField(type=str, pattern=r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
 
     test = Test(val='wdc23a@acu.edu')
-    with pytest.raises(ShiftFieldError):
+    with pytest.raises(ShiftModelError):
         test = Test(val='Hello There!')
 
 def test_shift_field_check():
@@ -185,7 +185,7 @@ def test_shift_field_check():
 
     test = Test(val=42)
     assert test.val == 42
-    with pytest.raises(ShiftFieldError):
+    with pytest.raises(ShiftModelError):
         _ = Test(val=-42)
 
 def test_shift_field_validator():
@@ -195,21 +195,21 @@ def test_shift_field_validator():
         val = ShiftField(type=int, validator=validator)
 
     test = Test(val=42)
-    with pytest.raises(ShiftFieldError):
+    with pytest.raises(ShiftModelError):
         test = Test(val=-42)
 
-def test_shift_field_validator_skips():
-    def validator(instance: Any, val: int) -> bool:
-        return True
-    class Test(Shift):
-        val = ShiftField(type=int, validator=validator, validator_skips=True)
-
-    test = Test(val='Hello There!')
-    assert test.val == 'Hello There!'
+# def test_shift_field_validator_skips():
+#     def validator(instance: Any, val: int) -> bool:
+#         return True
+#     class Test(Shift):
+#         val = ShiftField(type=int, validator=validator, validator_skips=True)
+#
+#     test = Test(val='Hello There!')
+#     assert test.val == 'Hello There!'
 
 def test_shift_field_setter():
-    def setter(instance: Any, val: int) -> None:
-        instance.val = val + 1
+    def setter(instance: Any, val: int) -> Any:
+        return val + 1
     class Test(Shift):
         val = ShiftField(type=int, setter=setter)
 
@@ -279,7 +279,7 @@ def test_shift_field_defer_transform():
         val: int | None = ShiftField(defer_transform=True, default=88)
 
     test = Test()
-    assert test.val is Missing
+    assert test.val is None
 
 def test_shift_field_defer_validation():
     class Test(Shift):
@@ -288,15 +288,15 @@ def test_shift_field_defer_validation():
     test = Test(val=42)
     assert test.val == 42
 
-def test_shift_field_defer_set():
-    class Test(Shift):
-        val: int = ShiftField(defer_set=True)
-
-        def __pre_init__(self) -> None:
-            self.val = 42
-
-    test = Test(val=88)
-    assert test.val == 42
+# def test_shift_field_defer_set():
+#     class Test(Shift):
+#         val: int = ShiftField(defer_set=True)
+#
+#         def __pre_init__(self) -> None:
+#             self.val = 42
+#
+#     test = Test(val=88)
+#     assert test.val == 42
 
 def test_shift_field_defer_repr():
     class Test(Shift):

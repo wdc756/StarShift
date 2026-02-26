@@ -1202,10 +1202,17 @@ def shift_shift_field_type_validator(instance: Any, field_info: ShiftFieldInfo, 
     if field_info.default.defer or field_info.default.defer_validation:
         return True
 
+    if field_info.default.default_skips:
+        return True
+
     errors = field_info.default.validate(field_info, shift_info)
     if not errors:
         return True
-    raise ShiftTypeMismatchError(f"failed ShiftField validation: {errors}")
+
+    errors_str = ''
+    for error in errors:
+        errors_str += f"\n        {error}"
+    raise ShiftTypeMismatchError(f"failed ShiftField validation: {errors_str}")
 
 def shift_type_validator(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> bool:
     """
@@ -1467,6 +1474,9 @@ def shift_shift_field_type_setter(instance: Any, field_info: ShiftFieldInfo, shi
         raise ShiftTypeMismatchError(f"expected ShiftField default, got `{type(field_info.default).__name__}`")
 
     if field_info.default.defer or field_info.default.defer_set:
+        return field_info.val
+
+    if field_info.default.default_skips:
         return field_info.val
 
     tmp_field = ShiftFieldInfo(f"{field_info.name}.{field_info.default.type.__name__}", field_info.default.type, field_info.val)

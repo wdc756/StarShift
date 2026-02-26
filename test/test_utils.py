@@ -223,7 +223,9 @@ def test_get_shift_info():
         data={
             "val": 42
         },
-        errors=[]
+        transform_errors=[],
+        validation_errors=[],
+        set_errors=[],
     )
     assert get_shift_info(Test, test, {"val": 42}) == info
 

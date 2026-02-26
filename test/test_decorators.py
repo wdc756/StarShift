@@ -79,7 +79,7 @@ def test_shift_validator():
     test = Test(val=42)
     assert test.val == 42
 
-    with pytest.raises(ShiftFieldError):
+    with pytest.raises(ShiftModelError):
         _ = Test(val=-42)
 
 def test_shift_validator_advanced():
@@ -93,7 +93,7 @@ def test_shift_validator_advanced():
     test = Test(val=42)
     assert test.val == 42
 
-    with pytest.raises(ShiftFieldError):
+    with pytest.raises(ShiftModelError):
         _ = Test(val=-42)
 
 def test_shift_validator_pre():

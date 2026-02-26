@@ -61,7 +61,7 @@ def test_shift_validate():
         val: int = 42
 
     test = Test()
-    with pytest.raises(ShiftFieldError):
+    with pytest.raises(ShiftModelError):
         test.validate(**{"val": InvalidType})
     assert test.val == 42
 
@@ -216,7 +216,8 @@ def test_abstract_base_class():
             },
             {
                 'type': 'IP',
-                'ip': '192.168.1.253'
+                'ip': '192.168.1.253',
+                'port': 8080
             }
         ]
     }
