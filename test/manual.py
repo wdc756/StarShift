@@ -14,10 +14,10 @@ InvalidType = object()
 def run():
     class Test(Shift):
         val: int = 42
+        name: str = "test"
 
     test = Test()
-    with pytest.raises(ShiftError):
-        test.validate(**{"val": InvalidType})
+    test.transform(**{"val": InvalidType})
     assert test.val == 42
 
 if __name__ == '__main__':

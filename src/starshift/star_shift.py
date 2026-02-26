@@ -53,21 +53,36 @@ class ShiftError(Exception):
     """Base class for all starshift errors"""
     def __init__(self, msg: str):
         super().__init__(msg)
+        self.msg = msg
+        
+class ShiftModelError(ShiftError):
+    """Model-related errors"""
+    def __init__(self, model_name: str, process: str, field_errors: list[ShiftFieldError]):
+        errors = ""
+        for field_error in field_errors:
+            errors += f"\n    {field_error.field_name}: {field_error.msg}"
+        super().__init__(f"\n\n\n{model_name}: encountered {len(field_errors)} errors during {process}:{errors}")
+        self.model_name = model_name
+        self.field_errors = field_errors
 
 class ShiftFieldError(ShiftError):
     """Field-related errors"""
-    def __init__(self, model_name: str, msg: str):
-        super().__init__(f"{model_name}: {msg}")
+    def __init__(self, field_name: str, msg: str):
+        super().__init__(f"{field_name}: {msg}")
+        self.field_name = field_name
+        self.msg = msg
 
 class ShiftTypeMismatchError(ShiftError):
     """Raised when a field's type does not match the expected type"""
     def __init__(self, msg: str):
         super().__init__(msg)
+        self.msg = msg
 
 class UnknownShiftTypeError(ShiftError):
     """Raised when a field's type is not registered"""
     def __init__(self, msg: str):
         super().__init__(msg)
+        self.msg = msg
 
 
 
@@ -176,7 +191,9 @@ class ShiftInfo:
         reprs (dict[str, Callable[[Any], str] | Callable[[ShiftField, ShiftInfo], str]]): Dict of field names to reprs
         serializers (dict[str, Callable[[Any], dict[str, Any] | Callable[[ShiftField, ShiftInfo], dict[str, Any]]]]): Dict of field names to serializers
         data (dict[str, Any]): Dict of field names to values (kwargs)
-        errors (list[ShiftError]): List of errors accumulated during validation
+        transform_errors (list[ShiftFieldError]): List of errors accumulated during transform
+        validation_errors (list[ShiftFieldError]): List of errors accumulated during validation
+        set_errors (list[ShiftFieldError]): List of errors accumulated during set
     """
     instance: Any
     model_name: str
@@ -192,7 +209,9 @@ class ShiftInfo:
     reprs: dict[str, ShiftRepr]
     serializers: dict[str, ShiftSerializer]
     data: dict[str, Any]
-    errors: list[ShiftError]
+    transform_errors: list[ShiftFieldError]
+    validation_errors: list[ShiftFieldError]
+    set_errors: list[ShiftFieldError]
 
 
 
@@ -647,7 +666,7 @@ def shift_missing_type_transformer(instance: Any, field_info: ShiftFieldInfo, sh
     """
 
     if field_info.val is Missing:
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected a value, got `MISSING`")
+        raise ShiftTypeMismatchError(f"expected a value, got `MISSING`")
     return field_info.val
 
 def shift_base_type_transformer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any:
@@ -657,7 +676,7 @@ def shift_base_type_transformer(instance: Any, field_info: ShiftFieldInfo, shift
     """
 
     if not isinstance(field_info.val, field_info.typ):
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected type `{field_info.typ.__name__}`, got `{type(field_info.val).__name__}`")
+        raise ShiftTypeMismatchError(f"expected type `{field_info.typ.__name__}`, got `{type(field_info.val).__name__}`")
     return field_info.val
 
 def shift_none_type_transformer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any:
@@ -667,7 +686,7 @@ def shift_none_type_transformer(instance: Any, field_info: ShiftFieldInfo, shift
     """
 
     if field_info.val is not None and field_info.val is not Missing:
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected type `None` or Missing, got `{type(field_info.val).__name__}`")
+        raise ShiftTypeMismatchError(f"expected type `None` or Missing, got `{type(field_info.val).__name__}`")
     return None
 
 def shift_any_type_transformer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any:
@@ -677,7 +696,7 @@ def shift_any_type_transformer(instance: Any, field_info: ShiftFieldInfo, shift_
     """
 
     if field_info.val is Missing:
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected a value, got `MISSING`")
+        raise ShiftTypeMismatchError(f"expected a value, got `MISSING`")
     return field_info.val
 
 def shift_one_of_type_transformer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any:
@@ -697,7 +716,7 @@ def shift_one_of_type_transformer(instance: Any, field_info: ShiftFieldInfo, shi
             return shift_type_transformer(instance, tmp_field_info, shift_info)
         except ShiftTypeMismatchError:
             pass
-    raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected one of types `{args}`, got `{type(field_info.val).__name__}`")
+    raise ShiftTypeMismatchError(f"expected one of types `{args}`, got `{type(field_info.val).__name__}`")
 
 def shift_one_of_val_type_transformer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any:
     """
@@ -711,7 +730,7 @@ def shift_one_of_val_type_transformer(instance: Any, field_info: ShiftFieldInfo,
 
     # One val must match
     if not field_info.val in args:
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected one of values `{args}`, got `{field_info.val}`")
+        raise ShiftTypeMismatchError(f"expected one of values `{args}`, got `{field_info.val}`")
     return field_info.val
 
 # noinspection PyTypeChecker
@@ -727,9 +746,9 @@ def shift_all_of_single_type_transformer(instance: Any, field_info: ShiftFieldIn
 
     # Must have one arg and val must be list-like
     if len(args) != 1:
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected one type arg, got `{args}`")
+        raise ShiftTypeMismatchError(f"expected one type arg, got `{args}`")
     if not isinstance(field_info.val, Iterable):
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected value to be list-like, got `{field_info.val}`")
+        raise ShiftTypeMismatchError(f"expected value to be list-like, got `{field_info.val}`")
 
     # Handle case where typ is not indexable
     indexable = _can_index(field_info.val)
@@ -742,7 +761,7 @@ def shift_all_of_single_type_transformer(instance: Any, field_info: ShiftFieldIn
         try:
             field_info.val[i] = shift_type_transformer(instance, tmp_field_info, shift_info)
         except ShiftTypeMismatchError:
-            raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected all values to be of type `{type(args[0].__name__)}`, but got `{type(val).__name__}` at index {i}")
+            raise ShiftTypeMismatchError(f"expected all values to be of type `{type(args[0].__name__)}`, but got `{type(val).__name__}` at index {i}")
 
     # Convert back typ if needed
     if not indexable:
@@ -762,9 +781,9 @@ def shift_all_of_many_type_transformer(instance: Any, field_info: ShiftFieldInfo
 
     # Val must be list-like, and must have same len as args
     if not isinstance(field_info.val, Iterable):
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected value to be list-like, got `{field_info.val}`")
+        raise ShiftTypeMismatchError(f"expected value to be list-like, got `{field_info.val}`")
     if len(field_info.val) != len(args):
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected {len(args)} values, got {len(field_info.val)}")
+        raise ShiftTypeMismatchError(f"expected {len(args)} values, got {len(field_info.val)}")
 
     # Handle case where typ is not indexable
     indexable = _can_index(field_info.val)
@@ -777,7 +796,7 @@ def shift_all_of_many_type_transformer(instance: Any, field_info: ShiftFieldInfo
         try:
             field_info.val[i] = shift_type_transformer(instance, tmp_field_info, shift_info)
         except ShiftTypeMismatchError as e:
-            raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected value at index {i} to be of type `{type(arg).__name__}`, but got `{type(val).__name__}`: {e}")
+            raise ShiftTypeMismatchError(f"expected value at index {i} to be of type `{type(arg).__name__}`, but got `{type(val).__name__}`: {e}")
 
     # Convert back typ if needed
     if not indexable:
@@ -796,7 +815,7 @@ def shift_all_of_pair_type_transformer(instance: Any, field_info: ShiftFieldInfo
 
     # Must be dict-like
     if not hasattr(field_info.val, "items"):
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected value to be dict-like, got `{field_info.val}`")
+        raise ShiftTypeMismatchError(f"expected value to be dict-like, got `{field_info.val}`")
 
     # All key-val pairs must match type
     new_val = {}
@@ -805,7 +824,7 @@ def shift_all_of_pair_type_transformer(instance: Any, field_info: ShiftFieldInfo
             tmp_field_info = ShiftFieldInfo(f"{field_info.name}.{type(key).__name__}", args[0], key)
             key = shift_type_transformer(instance, tmp_field_info, shift_info)
         except ShiftTypeMismatchError as e:
-            raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected key at index {i} to be of type `{type(args[0].__name__)}`, but got `{type(key).__name__}`: {e}")
+            raise ShiftTypeMismatchError(f"expected key at index {i} to be of type `{type(args[0].__name__)}`, but got `{type(key).__name__}`: {e}")
 
         try:
             if len(args) > 1:
@@ -814,7 +833,7 @@ def shift_all_of_pair_type_transformer(instance: Any, field_info: ShiftFieldInfo
             else:
                 new_val[key] = val
         except ShiftTypeMismatchError as e:
-            raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected val at index {i} to be of type `{type(args[1].__name__)}`, but got `{type(val).__name__}`: {e}")
+            raise ShiftTypeMismatchError(f"expected val at index {i} to be of type `{type(args[1].__name__)}`, but got `{type(val).__name__}`: {e}")
 
     return new_val
 
@@ -830,14 +849,14 @@ def shift_callable_type_transformer(instance: Any, field_info: ShiftFieldInfo, s
 
     # Value must be callable
     if not callable(field_info.val):
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected callable, got `{type(field_info.val).__name__}`")
+        raise ShiftTypeMismatchError(f"expected callable, got `{type(field_info.val).__name__}`")
     if len(args) != 2:
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected type signature `(param_types, return_type)`, got `{args}`")
+        raise ShiftTypeMismatchError(f"expected type signature `(param_types, return_type)`, got `{args}`")
 
     try:
         sig = inspect.signature(field_info.val)
     except (ValueError, TypeError):
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` could not inspect function signature")
+        raise ShiftTypeMismatchError(f"could not inspect function signature")
     return field_info.val
 
 def shift_forward_ref_type_transformer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any:
@@ -858,7 +877,7 @@ def shift_forward_ref_type_transformer(instance: Any, field_info: ShiftFieldInfo
         field_info.typ = resolved
         return shift_type_transformer(instance, field_info, shift_info)
     except Exception as e:
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` could not resolve forward reference `{field_info.typ}`: {e}")
+        raise ShiftTypeMismatchError(f"could not resolve forward reference `{field_info.typ}`: {e}")
 
 def shift_shift_type_transformer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any:
     """
@@ -872,8 +891,8 @@ def shift_shift_type_transformer(instance: Any, field_info: ShiftFieldInfo, shif
         if isinstance(field_info.val, dict):
             return field_info.val
     except Exception as e:
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` could not inspect value: {e}")
-    raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected Shift subclass or dict, got `{type(field_info.val).__name__}`")
+        raise ShiftTypeMismatchError(f"could not inspect value: {e}")
+    raise ShiftTypeMismatchError(f"expected Shift subclass or dict, got `{type(field_info.val).__name__}`")
 
 def shift_shift_field_type_transformer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any:
     """
@@ -882,7 +901,7 @@ def shift_shift_field_type_transformer(instance: Any, field_info: ShiftFieldInfo
     """
 
     if not isinstance(field_info.default, ShiftField):
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected ShiftField default, got `{type(field_info.default).__name__}`")
+        raise ShiftTypeMismatchError(f"expected ShiftField default, got `{type(field_info.default).__name__}`")
 
     if field_info.default.defer or field_info.default.defer_transform:
         return field_info.val
@@ -920,7 +939,7 @@ def shift_missing_type_validator(instance: Any, field_info: ShiftFieldInfo, shif
     """
 
     if field_info.val is Missing:
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected a value, got `MISSING`")
+        raise ShiftTypeMismatchError(f"expected a value, got `MISSING`")
     return True
 
 def shift_base_type_validator(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> bool:
@@ -929,7 +948,7 @@ def shift_base_type_validator(instance: Any, field_info: ShiftFieldInfo, shift_i
     """
 
     if not isinstance(field_info.val, field_info.typ):
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected type `{field_info.typ.__name__}`, got `{type(field_info.val).__name__}`")
+        raise ShiftTypeMismatchError(f"expected type `{field_info.typ.__name__}`, got `{type(field_info.val).__name__}`")
     return True
 
 def shift_none_type_validator(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> bool:
@@ -939,7 +958,7 @@ def shift_none_type_validator(instance: Any, field_info: ShiftFieldInfo, shift_i
     """
 
     if field_info.val is not None and field_info.val is not Missing:
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected type `None` or Missing, got `{type(field_info.val).__name__}`")
+        raise ShiftTypeMismatchError(f"expected type `None` or Missing, got `{type(field_info.val).__name__}`")
     return True
 
 def shift_any_type_validator(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> bool:
@@ -949,7 +968,7 @@ def shift_any_type_validator(instance: Any, field_info: ShiftFieldInfo, shift_in
     """
 
     if field_info.val is Missing:
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected a value, got `MISSING`")
+        raise ShiftTypeMismatchError(f"expected a value, got `MISSING`")
     return True
 
 def shift_one_of_type_validator(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> bool:
@@ -969,7 +988,7 @@ def shift_one_of_type_validator(instance: Any, field_info: ShiftFieldInfo, shift
             return shift_type_validator(instance, tmp_field_info, shift_info)
         except ShiftTypeMismatchError:
             pass
-    raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected one of types `{args}`, got `{type(field_info.val).__name__}`")
+    raise ShiftTypeMismatchError(f"expected one of types `{args}`, got `{type(field_info.val).__name__}`")
 
 def shift_one_of_val_type_validator(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> bool:
     """
@@ -983,7 +1002,7 @@ def shift_one_of_val_type_validator(instance: Any, field_info: ShiftFieldInfo, s
 
     # One val must match
     if not field_info.val in args:
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected one of values `{args}`, got `{field_info.val}`")
+        raise ShiftTypeMismatchError(f"expected one of values `{args}`, got `{field_info.val}`")
     return True
 
 def shift_all_of_single_type_validator(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> bool:
@@ -998,18 +1017,18 @@ def shift_all_of_single_type_validator(instance: Any, field_info: ShiftFieldInfo
 
     # Must have one arg and val must be list-like
     if len(args) != 1:
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected one type arg, got `{args}`")
+        raise ShiftTypeMismatchError(f"expected one type arg, got `{args}`")
     if not isinstance(field_info.val, Iterable):
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected value to be list-like, got `{field_info.val}`")
+        raise ShiftTypeMismatchError(f"expected value to be list-like, got `{field_info.val}`")
 
     # All values must be of type args[0]
     for i, val in enumerate(field_info.val):
         tmp_field_info = ShiftFieldInfo(f"{field_info.name}.{type(args[0].__name__)}[i]", args[0], val)
         try:
             if not shift_type_validator(instance, tmp_field_info, shift_info):
-                raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected all values to be of type `{type(args[0].__name__)}`, but got `{type(val).__name__}` at index {i}")
+                raise ShiftTypeMismatchError(f"expected all values to be of type `{type(args[0].__name__)}`, but got `{type(val).__name__}` at index {i}")
         except ShiftTypeMismatchError as e:
-            raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected all values to be of type `{type(args[0].__name__)}`, but got `{type(val).__name__}` at index {i}: {e}")
+            raise ShiftTypeMismatchError(f"expected all values to be of type `{type(args[0].__name__)}`, but got `{type(val).__name__}` at index {i}: {e}")
     return True
 
 # noinspection PyTypeChecker
@@ -1025,18 +1044,18 @@ def shift_all_of_many_type_validator(instance: Any, field_info: ShiftFieldInfo, 
 
     # Val must be list-like, and must have same len as args
     if not isinstance(field_info.val, Iterable):
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected value to be list-like, got `{field_info.val}`")
+        raise ShiftTypeMismatchError(f"expected value to be list-like, got `{field_info.val}`")
     if len(field_info.val) != len(args):
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected {len(args)} values, got {len(field_info.val)}")
+        raise ShiftTypeMismatchError(f"expected {len(args)} values, got {len(field_info.val)}")
 
     # All values must be of type args[i]
     for i, (val, arg) in enumerate(zip(field_info.val, args)):
         tmp_field_info = ShiftFieldInfo(f"{field_info.name}.{type(arg).__name__}", arg, val)
         try:
             if not shift_type_validator(instance, tmp_field_info, shift_info):
-                raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected value at index {i} to be of type `{type(arg).__name__}`, but got `{type(val).__name__}`")
+                raise ShiftTypeMismatchError(f"expected value at index {i} to be of type `{type(arg).__name__}`, but got `{type(val).__name__}`")
         except ShiftTypeMismatchError as e:
-            raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected value at index {i} to be of type `{type(arg).__name__}`, but got `{type(val).__name__}`: {e}")
+            raise ShiftTypeMismatchError(f"expected value at index {i} to be of type `{type(arg).__name__}`, but got `{type(val).__name__}`: {e}")
     return True
 
 def shift_all_of_pair_type_validator(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> bool:
@@ -1051,24 +1070,24 @@ def shift_all_of_pair_type_validator(instance: Any, field_info: ShiftFieldInfo, 
 
     # Must be dict-like
     if not hasattr(field_info.val, "items"):
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected value to be dict-like, got `{field_info.val}`")
+        raise ShiftTypeMismatchError(f"expected value to be dict-like, got `{field_info.val}`")
 
     # All key-val pairs must match type
     for i, (key, val) in enumerate(field_info.val.items()):
         try:
             tmp_field_info = ShiftFieldInfo(f"{field_info.name}.{type(key).__name__}", args[0], key)
             if not shift_type_validator(instance, tmp_field_info, shift_info):
-                raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected key at index {i} to be of type `{type(args[0].__name__)}`, but got `{type(key).__name__}`")
+                raise ShiftTypeMismatchError(f"expected key at index {i} to be of type `{type(args[0].__name__)}`, but got `{type(key).__name__}`")
         except ShiftTypeMismatchError as e:
-            raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected key at index {i} to be of type `{type(args[0].__name__)}`, but got `{type(key).__name__}`: {e}")
+            raise ShiftTypeMismatchError(f"expected key at index {i} to be of type `{type(args[0].__name__)}`, but got `{type(key).__name__}`: {e}")
 
         try:
             if len(args) > 1:
                 tmp_field_info = ShiftFieldInfo(f"{field_info.name}.{type(val).__name__}", args[1], val)
                 if not shift_type_validator(instance, tmp_field_info, shift_info):
-                    raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected val at index {i} to be of type `{type(args[1].__name__)}`, but got `{type(val).__name__}`")
+                    raise ShiftTypeMismatchError(f"expected val at index {i} to be of type `{type(args[1].__name__)}`, but got `{type(val).__name__}`")
         except ShiftTypeMismatchError as e:
-            raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected val at index {i} to be of type `{type(args[1].__name__)}`, but got `{type(val).__name__}`: {e}")
+            raise ShiftTypeMismatchError(f"expected val at index {i} to be of type `{type(args[1].__name__)}`, but got `{type(val).__name__}`: {e}")
 
     return True
 
@@ -1084,16 +1103,16 @@ def shift_callable_type_validator(instance: Any, field_info: ShiftFieldInfo, shi
 
     # Value must be callable
     if not callable(field_info.val):
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected callable, got `{type(field_info.val).__name__}`")
+        raise ShiftTypeMismatchError(f"expected callable, got `{type(field_info.val).__name__}`")
     if len(args) != 2:
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected type signature `(param_types, return_type)`, got `{args}`")
+        raise ShiftTypeMismatchError(f"expected type signature `(param_types, return_type)`, got `{args}`")
     param_types = args[0]
     return_type = args[1]
 
     try:
         sig = inspect.signature(field_info.val)
     except (ValueError, TypeError):
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` could not inspect function signature")
+        raise ShiftTypeMismatchError(f"could not inspect function signature")
     params = list(sig.parameters.values())
 
     # Handle special case: Callable[..., ReturnType] means "any params"
@@ -1101,18 +1120,18 @@ def shift_callable_type_validator(instance: Any, field_info: ShiftFieldInfo, shi
         # Just check the return type
         if return_type is not inspect.Signature.empty:
             if sig.return_annotation == inspect.Signature.empty:
-                raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected return type, but val has none")
+                raise ShiftTypeMismatchError(f"expected return type, but val has none")
             try:
                 tmp_field_info = ShiftFieldInfo(f"{field_info.name}.return_type", return_type, sig.return_annotation)
                 if not shift_type_validator(instance, tmp_field_info, shift_info):
-                    raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected return type `{type(return_type).__name__}`, but got `{type(sig.return_annotation).__name__}`")
+                    raise ShiftTypeMismatchError(f"expected return type `{type(return_type).__name__}`, but got `{type(sig.return_annotation).__name__}`")
             except ShiftTypeMismatchError as e:
-                raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected return type `{type(return_type).__name__}`, got `{type(sig.return_annotation).__name__}`: {e}")
+                raise ShiftTypeMismatchError(f"expected return type `{type(return_type).__name__}`, got `{type(sig.return_annotation).__name__}`: {e}")
         return True
 
     # Check parameter annotations
     if len(params) != len(param_types):
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected {len(param_types)} parameters, got {len(params)}")
+        raise ShiftTypeMismatchError(f"expected {len(param_types)} parameters, got {len(params)}")
     for i, (param, expected_type) in enumerate(zip(params, param_types)):
         if param.annotation == inspect.Parameter.empty:
             # Function has no annotation for this parameter
@@ -1120,20 +1139,20 @@ def shift_callable_type_validator(instance: Any, field_info: ShiftFieldInfo, shi
         try:
             tmp_field_info = ShiftFieldInfo(f"{field_info.name}.{param.name}", expected_type, param)
             if not shift_type_validator(instance, tmp_field_info, shift_info):
-                raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected parameter `{param.name}` to be of type `{type(expected_type).__name__}`, but got `{type(param.annotation).__name__}`")
+                raise ShiftTypeMismatchError(f"expected parameter `{param.name}` to be of type `{type(expected_type).__name__}`, but got `{type(param.annotation).__name__}`")
         except ShiftTypeMismatchError as e:
-            raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected parameter `{param.name}` to be of type `{type(expected_type).__name__}`, got `{type(param.annotation).__name__}`: {e}")
+            raise ShiftTypeMismatchError(f"expected parameter `{param.name}` to be of type `{type(expected_type).__name__}`, got `{type(param.annotation).__name__}`: {e}")
 
     # Check return type annotation
     if return_type is not inspect.Signature.empty:
         if sig.return_annotation == inspect.Signature.empty:
-            raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected return type, but val has none")
+            raise ShiftTypeMismatchError(f"expected return type, but val has none")
         try:
             tmp_field_info = ShiftFieldInfo(f"{field_info.name}.return_type", return_type, sig.return_annotation)
             if not shift_type_validator(instance, tmp_field_info, shift_info):
-                raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected return type `{type(return_type).__name__}`, but got `{type(sig.return_annotation).__name__}`")
+                raise ShiftTypeMismatchError(f"expected return type `{type(return_type).__name__}`, but got `{type(sig.return_annotation).__name__}`")
         except ShiftTypeMismatchError as e:
-            raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected return type `{type(return_type).__name__}`, got `{type(sig.return_annotation).__name__}`: {e}")
+            raise ShiftTypeMismatchError(f"expected return type `{type(return_type).__name__}`, got `{type(sig.return_annotation).__name__}`: {e}")
     return True
 
 def shift_forward_ref_type_validator(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> bool:
@@ -1154,7 +1173,7 @@ def shift_forward_ref_type_validator(instance: Any, field_info: ShiftFieldInfo, 
         field_info.typ = resolved
         return shift_type_validator(instance, field_info, shift_info)
     except Exception as e:
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` could not resolve forward reference `{field_info.typ}`: {e}")
+        raise ShiftTypeMismatchError(f"could not resolve forward reference `{field_info.typ}`: {e}")
 
 def shift_shift_type_validator(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> bool:
     """
@@ -1168,8 +1187,8 @@ def shift_shift_type_validator(instance: Any, field_info: ShiftFieldInfo, shift_
         if isinstance(field_info.val, dict):
             return True
     except Exception as e:
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` could not inspect value: {e}")
-    raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected Shift subclass or dict, got `{type(field_info.val).__name__}`")
+        raise ShiftTypeMismatchError(f"could not inspect value: {e}")
+    raise ShiftTypeMismatchError(f"expected Shift subclass or dict, got `{type(field_info.val).__name__}`")
 
 def shift_shift_field_type_validator(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> bool:
     """
@@ -1178,7 +1197,7 @@ def shift_shift_field_type_validator(instance: Any, field_info: ShiftFieldInfo, 
     """
 
     if not isinstance(field_info.default, ShiftField):
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected ShiftField default, got `{type(field_info.default).__name__}`")
+        raise ShiftTypeMismatchError(f"expected ShiftField default, got `{type(field_info.default).__name__}`")
 
     if field_info.default.defer or field_info.default.defer_validation:
         return True
@@ -1186,7 +1205,7 @@ def shift_shift_field_type_validator(instance: Any, field_info: ShiftFieldInfo, 
     errors = field_info.default.validate(field_info, shift_info)
     if not errors:
         return True
-    raise ShiftTypeMismatchError(f"Field `{field_info.name}` failed ShiftField validation: {errors}")
+    raise ShiftTypeMismatchError(f"failed ShiftField validation: {errors}")
 
 def shift_type_validator(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> bool:
     """
@@ -1209,7 +1228,7 @@ def shift_missing_type_setter(instance: Any, field_info: ShiftFieldInfo, shift_i
     """
 
     if field_info.val is Missing:
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected a value, got `MISSING`")
+        raise ShiftTypeMismatchError(f"expected a value, got `MISSING`")
     return field_info.val
 
 def shift_base_type_setter(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any:
@@ -1219,7 +1238,7 @@ def shift_base_type_setter(instance: Any, field_info: ShiftFieldInfo, shift_info
     """
 
     if not isinstance(field_info.val, field_info.typ):
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected type `{field_info.typ.__name__}`, got `{type(field_info.val).__name__}`")
+        raise ShiftTypeMismatchError(f"expected type `{field_info.typ.__name__}`, got `{type(field_info.val).__name__}`")
     return field_info.val
 
 def shift_none_type_setter(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any:
@@ -1229,7 +1248,7 @@ def shift_none_type_setter(instance: Any, field_info: ShiftFieldInfo, shift_info
     """
 
     if field_info.val is not None and field_info.val is not Missing:
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected type `None` or Missing, got `{type(field_info.val).__name__}`")
+        raise ShiftTypeMismatchError(f"expected type `None` or Missing, got `{type(field_info.val).__name__}`")
     return None
 
 def shift_any_type_setter(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any:
@@ -1239,7 +1258,7 @@ def shift_any_type_setter(instance: Any, field_info: ShiftFieldInfo, shift_info:
     """
 
     if field_info.val is Missing:
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected a value, got `MISSING`")
+        raise ShiftTypeMismatchError(f"expected a value, got `MISSING`")
     return field_info.val
 
 def shift_one_of_type_setter(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any:
@@ -1260,7 +1279,7 @@ def shift_one_of_type_setter(instance: Any, field_info: ShiftFieldInfo, shift_in
             return shift_type_setter(instance, tmp_field_info, shift_info)
         except ShiftTypeMismatchError:
             pass
-    raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected one of types `{args}`, got `{type(field_info.val).__name__}`")
+    raise ShiftTypeMismatchError(f"expected one of types `{args}`, got `{type(field_info.val).__name__}`")
 
 def shift_one_of_val_type_setter(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any:
     """
@@ -1274,7 +1293,7 @@ def shift_one_of_val_type_setter(instance: Any, field_info: ShiftFieldInfo, shif
 
     # One val must match
     if not field_info.val in args:
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected one of values `{args}`, got `{field_info.val}`")
+        raise ShiftTypeMismatchError(f"expected one of values `{args}`, got `{field_info.val}`")
     return field_info.val
 
 # noinspection PyTypeChecker
@@ -1290,9 +1309,9 @@ def shift_all_of_single_type_setter(instance: Any, field_info: ShiftFieldInfo, s
 
     # Must have one arg and val must be list-like
     if len(args) != 1:
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected one type arg, got `{args}`")
+        raise ShiftTypeMismatchError(f"expected one type arg, got `{args}`")
     if not isinstance(field_info.val, Iterable):
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected value to be list-like, got `{field_info.val}`")
+        raise ShiftTypeMismatchError(f"expected value to be list-like, got `{field_info.val}`")
 
     # Handle case where typ is not indexable
     indexable = _can_index(field_info.val)
@@ -1305,7 +1324,7 @@ def shift_all_of_single_type_setter(instance: Any, field_info: ShiftFieldInfo, s
         try:
             field_info.val[i] = shift_type_setter(instance, tmp_field_info, shift_info)
         except ShiftTypeMismatchError:
-            raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected all values to be of type `{type(args[0].__name__)}`, but got `{type(val).__name__}` at index {i}")
+            raise ShiftTypeMismatchError(f"expected all values to be of type `{type(args[0].__name__)}`, but got `{type(val).__name__}` at index {i}")
 
     # Convert back typ if needed
     if not indexable:
@@ -1325,9 +1344,9 @@ def shift_all_of_many_type_setter(instance: Any, field_info: ShiftFieldInfo, shi
 
     # Val must be list-like, and must have same len as args
     if not isinstance(field_info.val, Iterable):
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected value to be list-like, got `{field_info.val}`")
+        raise ShiftTypeMismatchError(f"expected value to be list-like, got `{field_info.val}`")
     if len(field_info.val) != len(args):
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected {len(args)} values, got {len(field_info.val)}")
+        raise ShiftTypeMismatchError(f"expected {len(args)} values, got {len(field_info.val)}")
 
     # Handle case where typ is not indexable
     indexable = _can_index(field_info.val)
@@ -1340,7 +1359,7 @@ def shift_all_of_many_type_setter(instance: Any, field_info: ShiftFieldInfo, shi
         try:
             field_info.val[i] = shift_type_setter(instance, tmp_field_info, shift_info)
         except ShiftTypeMismatchError as e:
-            raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected value at index {i} to be of type `{type(arg).__name__}`, but got `{type(val).__name__}`: {e}")
+            raise ShiftTypeMismatchError(f"expected value at index {i} to be of type `{type(arg).__name__}`, but got `{type(val).__name__}`: {e}")
 
     # Convert back typ if needed
     if not indexable:
@@ -1359,7 +1378,7 @@ def shift_all_of_pair_type_setter(instance: Any, field_info: ShiftFieldInfo, shi
 
     # Must be dict-like
     if not hasattr(field_info.val, "items"):
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected value to be dict-like, got `{field_info.val}`")
+        raise ShiftTypeMismatchError(f"expected value to be dict-like, got `{field_info.val}`")
 
     # All key-val pairs must match type
     new_val = {}
@@ -1368,7 +1387,7 @@ def shift_all_of_pair_type_setter(instance: Any, field_info: ShiftFieldInfo, shi
             tmp_field_info = ShiftFieldInfo(f"{field_info.name}.{type(key).__name__}", args[0], key)
             key = shift_type_setter(instance, tmp_field_info, shift_info)
         except ShiftTypeMismatchError as e:
-            raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected key at index {i} to be of type `{type(args[0].__name__)}`, but got `{type(key).__name__}`: {e}")
+            raise ShiftTypeMismatchError(f"expected key at index {i} to be of type `{type(args[0].__name__)}`, but got `{type(key).__name__}`: {e}")
 
         try:
             if len(args) > 1:
@@ -1377,7 +1396,7 @@ def shift_all_of_pair_type_setter(instance: Any, field_info: ShiftFieldInfo, shi
             else:
                 new_val[key] = val
         except ShiftTypeMismatchError as e:
-            raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected val at index {i} to be of type `{type(args[1].__name__)}`, but got `{type(val).__name__}`: {e}")
+            raise ShiftTypeMismatchError(f"expected val at index {i} to be of type `{type(args[1].__name__)}`, but got `{type(val).__name__}`: {e}")
 
     return new_val
 
@@ -1393,14 +1412,14 @@ def shift_callable_type_setter(instance: Any, field_info: ShiftFieldInfo, shift_
 
     # Value must be callable
     if not callable(field_info.val):
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected callable, got `{type(field_info.val).__name__}`")
+        raise ShiftTypeMismatchError(f"expected callable, got `{type(field_info.val).__name__}`")
     if len(args) != 2:
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected type signature `(param_types, return_type)`, got `{args}`")
+        raise ShiftTypeMismatchError(f"expected type signature `(param_types, return_type)`, got `{args}`")
 
     try:
         sig = inspect.signature(field_info.val)
     except (ValueError, TypeError):
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` could not inspect function signature")
+        raise ShiftTypeMismatchError(f"could not inspect function signature")
     return field_info.val
 
 def shift_forward_ref_type_setter(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any:
@@ -1421,7 +1440,7 @@ def shift_forward_ref_type_setter(instance: Any, field_info: ShiftFieldInfo, shi
         field_info.typ = resolved
         return shift_type_setter(instance, field_info, shift_info)
     except Exception as e:
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` could not resolve forward reference `{field_info.typ}`: {e}")
+        raise ShiftTypeMismatchError(f"could not resolve forward reference `{field_info.typ}`: {e}")
 
 def shift_shift_type_setter(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any:
     """
@@ -1435,8 +1454,8 @@ def shift_shift_type_setter(instance: Any, field_info: ShiftFieldInfo, shift_inf
         if isinstance(field_info.val, dict) and issubclass(field_info.typ, Shift):
             return field_info.typ(**field_info.val) # Assume typ is Shift subclass
     except Exception as e:
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` could not inspect value: {e}")
-    raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected Shift subclass or dict, got `{type(field_info.val).__name__}`")
+        raise ShiftTypeMismatchError(f"could not inspect value: {e}")
+    raise ShiftTypeMismatchError(f"expected Shift subclass or dict, got `{type(field_info.val).__name__}`")
 
 def shift_shift_field_type_setter(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any:
     """
@@ -1445,7 +1464,7 @@ def shift_shift_field_type_setter(instance: Any, field_info: ShiftFieldInfo, shi
     """
 
     if not isinstance(field_info.default, ShiftField):
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected ShiftField default, got `{type(field_info.default).__name__}`")
+        raise ShiftTypeMismatchError(f"expected ShiftField default, got `{type(field_info.default).__name__}`")
 
     if field_info.default.defer or field_info.default.defer_set:
         return field_info.val
@@ -1478,7 +1497,7 @@ def shift_missing_type_repr(instance: Any, field_info: ShiftFieldInfo, shift_inf
     """
 
     if field_info.val is Missing:
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected a value, got `MISSING`")
+        raise ShiftTypeMismatchError(f"expected a value, got `MISSING`")
     return repr(field_info.val)
 
 def shift_base_type_repr(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> str | None:
@@ -1488,7 +1507,7 @@ def shift_base_type_repr(instance: Any, field_info: ShiftFieldInfo, shift_info: 
     """
 
     if not isinstance(field_info.val, field_info.typ):
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected type `{field_info.typ.__name__}`, got `{type(field_info.val).__name__}`")
+        raise ShiftTypeMismatchError(f"expected type `{field_info.typ.__name__}`, got `{type(field_info.val).__name__}`")
     return repr(field_info.val)
 
 def shift_none_type_repr(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> str | None:
@@ -1498,7 +1517,7 @@ def shift_none_type_repr(instance: Any, field_info: ShiftFieldInfo, shift_info: 
     """
 
     if field_info.val is not None and field_info.val is not Missing:
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected type `None` or Missing, got `{type(field_info.val).__name__}`")
+        raise ShiftTypeMismatchError(f"expected type `None` or Missing, got `{type(field_info.val).__name__}`")
     return repr(field_info.val)
 
 def shift_any_type_repr(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> str | None:
@@ -1508,7 +1527,7 @@ def shift_any_type_repr(instance: Any, field_info: ShiftFieldInfo, shift_info: S
     """
 
     if field_info.val is Missing:
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected a value, got `MISSING`")
+        raise ShiftTypeMismatchError(f"expected a value, got `MISSING`")
     return repr(field_info.val)
 
 def shift_one_of_type_repr(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> str | None:
@@ -1528,7 +1547,7 @@ def shift_one_of_type_repr(instance: Any, field_info: ShiftFieldInfo, shift_info
             return shift_type_repr(instance, tmp_field_info, shift_info)
         except ShiftTypeMismatchError:
             pass
-    raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected one of types `{args}`, got `{type(field_info.val).__name__}`")
+    raise ShiftTypeMismatchError(f"expected one of types `{args}`, got `{type(field_info.val).__name__}`")
 
 def shift_one_of_val_type_repr(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> str | None:
     """
@@ -1542,7 +1561,7 @@ def shift_one_of_val_type_repr(instance: Any, field_info: ShiftFieldInfo, shift_
 
     # One val must match
     if not field_info.val in args:
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected one of values `{args}`, got `{field_info.val}`")
+        raise ShiftTypeMismatchError(f"expected one of values `{args}`, got `{field_info.val}`")
     return repr(field_info.val)
 
 # noinspection PyTypeChecker
@@ -1558,9 +1577,9 @@ def shift_all_of_single_type_repr(instance: Any, field_info: ShiftFieldInfo, shi
 
     # Must have one arg and val must be list-like
     if len(args) != 1:
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected one type arg, got `{args}`")
+        raise ShiftTypeMismatchError(f"expected one type arg, got `{args}`")
     if not isinstance(field_info.val, Iterable):
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected value to be list-like, got `{field_info.val}`")
+        raise ShiftTypeMismatchError(f"expected value to be list-like, got `{field_info.val}`")
 
     # All values must be of type args[0]
     for i, val in enumerate(field_info.val):
@@ -1568,7 +1587,7 @@ def shift_all_of_single_type_repr(instance: Any, field_info: ShiftFieldInfo, shi
         try:
             field_info.val[i] = shift_type_repr(instance, tmp_field_info, shift_info)
         except ShiftTypeMismatchError:
-            raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected all values to be of type `{type(args[0].__name__)}`, but got `{type(val).__name__}` at index {i}")
+            raise ShiftTypeMismatchError(f"expected all values to be of type `{type(args[0].__name__)}`, but got `{type(val).__name__}` at index {i}")
     return repr(field_info.val)
 
 # noinspection PyTypeChecker
@@ -1584,9 +1603,9 @@ def shift_all_of_many_type_repr(instance: Any, field_info: ShiftFieldInfo, shift
 
     # Val must be list-like, and must have same len as args
     if not isinstance(field_info.val, Iterable):
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected value to be list-like, got `{field_info.val}`")
+        raise ShiftTypeMismatchError(f"expected value to be list-like, got `{field_info.val}`")
     if len(field_info.val) != len(args):
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected {len(args)} values, got {len(field_info.val)}")
+        raise ShiftTypeMismatchError(f"expected {len(args)} values, got {len(field_info.val)}")
 
     # All values must be of type args[i]
     for i, (val, arg) in enumerate(zip(field_info.val, args)):
@@ -1594,7 +1613,7 @@ def shift_all_of_many_type_repr(instance: Any, field_info: ShiftFieldInfo, shift
         try:
             field_info.val[i] = shift_type_repr(instance, tmp_field_info, shift_info)
         except ShiftTypeMismatchError as e:
-            raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected value at index {i} to be of type `{type(arg).__name__}`, but got `{type(val).__name__}`: {e}")
+            raise ShiftTypeMismatchError(f"expected value at index {i} to be of type `{type(arg).__name__}`, but got `{type(val).__name__}`: {e}")
     return repr(field_info.val)
 
 def shift_all_of_pair_type_repr(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> str | None:
@@ -1609,7 +1628,7 @@ def shift_all_of_pair_type_repr(instance: Any, field_info: ShiftFieldInfo, shift
 
     # Must be dict-like
     if not hasattr(field_info.val, "items"):
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected value to be dict-like, got `{field_info.val}`")
+        raise ShiftTypeMismatchError(f"expected value to be dict-like, got `{field_info.val}`")
 
     # All key-val pairs must match type
     new_val = {}
@@ -1618,7 +1637,7 @@ def shift_all_of_pair_type_repr(instance: Any, field_info: ShiftFieldInfo, shift
             tmp_field_info = ShiftFieldInfo(f"{field_info.name}.{type(key).__name__}", args[0], key)
             key = shift_type_repr(instance, tmp_field_info, shift_info)
         except ShiftTypeMismatchError as e:
-            raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected key at index {i} to be of type `{type(args[0].__name__)}`, but got `{type(key).__name__}`: {e}")
+            raise ShiftTypeMismatchError(f"expected key at index {i} to be of type `{type(args[0].__name__)}`, but got `{type(key).__name__}`: {e}")
 
         try:
             if len(args) > 1:
@@ -1627,7 +1646,7 @@ def shift_all_of_pair_type_repr(instance: Any, field_info: ShiftFieldInfo, shift
             else:
                 new_val[key] = val
         except ShiftTypeMismatchError as e:
-            raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected val at index {i} to be of type `{type(args[1].__name__)}`, but got `{type(val).__name__}`: {e}")
+            raise ShiftTypeMismatchError(f"expected val at index {i} to be of type `{type(args[1].__name__)}`, but got `{type(val).__name__}`: {e}")
 
     return repr(new_val)
 
@@ -1643,14 +1662,14 @@ def shift_callable_type_repr(instance: Any, field_info: ShiftFieldInfo, shift_in
 
     # Value must be callable
     if not callable(field_info.val):
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected callable, got `{type(field_info.val).__name__}`")
+        raise ShiftTypeMismatchError(f"expected callable, got `{type(field_info.val).__name__}`")
     if len(args) != 2:
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected type signature `(param_types, return_type)`, got `{args}`")
+        raise ShiftTypeMismatchError(f"expected type signature `(param_types, return_type)`, got `{args}`")
 
     try:
         sig = inspect.signature(field_info.val)
     except (ValueError, TypeError):
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` could not inspect function signature")
+        raise ShiftTypeMismatchError(f"could not inspect function signature")
     return repr(field_info.val)
 
 def shift_forward_ref_type_repr(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> str | None:
@@ -1671,7 +1690,7 @@ def shift_forward_ref_type_repr(instance: Any, field_info: ShiftFieldInfo, shift
         field_info.typ = resolved
         return shift_type_repr(instance, field_info, shift_info)
     except Exception as e:
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` could not resolve forward reference `{field_info.typ}`: {e}")
+        raise ShiftTypeMismatchError(f"could not resolve forward reference `{field_info.typ}`: {e}")
     
 def shift_shift_type_repr(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> str | None:
     """
@@ -1683,8 +1702,8 @@ def shift_shift_type_repr(instance: Any, field_info: ShiftFieldInfo, shift_info:
         if isinstance(field_info.val, Shift) or issubclass(field_info.val, Shift):
             return repr(field_info.val)
     except Exception as e:
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` could not inspect value: {e}")
-    raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected Shift subclass or dict, got `{type(field_info.val).__name__}`")
+        raise ShiftTypeMismatchError(f"could not inspect value: {e}")
+    raise ShiftTypeMismatchError(f"expected Shift subclass or dict, got `{type(field_info.val).__name__}`")
 
 def shift_shift_field_type_repr(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> str | None:
     """
@@ -1693,7 +1712,7 @@ def shift_shift_field_type_repr(instance: Any, field_info: ShiftFieldInfo, shift
     """
 
     if not isinstance(field_info.default, ShiftField):
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected ShiftField default, got `{type(field_info.default).__name__}`")
+        raise ShiftTypeMismatchError(f"expected ShiftField default, got `{type(field_info.default).__name__}`")
 
     if field_info.default.defer or field_info.default.defer_repr:
         return None
@@ -1725,7 +1744,7 @@ def shift_missing_type_serializer(instance: Any, field_info: ShiftFieldInfo, shi
     """
 
     if field_info.val is Missing:
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected a value, got `MISSING`")
+        raise ShiftTypeMismatchError(f"expected a value, got `MISSING`")
     return field_info.val
 
 def shift_base_type_serializer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any | None:
@@ -1735,7 +1754,7 @@ def shift_base_type_serializer(instance: Any, field_info: ShiftFieldInfo, shift_
     """
 
     if not isinstance(field_info.val, field_info.typ):
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected type `{field_info.typ.__name__}`, got `{type(field_info.val).__name__}`")
+        raise ShiftTypeMismatchError(f"expected type `{field_info.typ.__name__}`, got `{type(field_info.val).__name__}`")
     return field_info.val
 
 def shift_none_type_serializer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any | None:
@@ -1745,7 +1764,7 @@ def shift_none_type_serializer(instance: Any, field_info: ShiftFieldInfo, shift_
     """
 
     if field_info.val is not None and field_info.val is not Missing:
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected type `None` or Missing, got `{type(field_info.val).__name__}`")
+        raise ShiftTypeMismatchError(f"expected type `None` or Missing, got `{type(field_info.val).__name__}`")
     return field_info.val
 
 def shift_any_type_serializer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any | None:
@@ -1755,7 +1774,7 @@ def shift_any_type_serializer(instance: Any, field_info: ShiftFieldInfo, shift_i
     """
 
     if field_info.val is Missing:
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected a value, got `MISSING`")
+        raise ShiftTypeMismatchError(f"expected a value, got `MISSING`")
     return field_info.val
 
 def shift_one_of_type_serializer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any | None:
@@ -1775,7 +1794,7 @@ def shift_one_of_type_serializer(instance: Any, field_info: ShiftFieldInfo, shif
             return shift_type_serializer(instance, tmp_field_info, shift_info)
         except ShiftTypeMismatchError:
             pass
-    raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected one of types `{args}`, got `{type(field_info.val).__name__}`")
+    raise ShiftTypeMismatchError(f"expected one of types `{args}`, got `{type(field_info.val).__name__}`")
 
 def shift_one_of_val_type_serializer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any | None:
     """
@@ -1789,7 +1808,7 @@ def shift_one_of_val_type_serializer(instance: Any, field_info: ShiftFieldInfo, 
 
     # One val must match
     if not field_info.val in args:
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected one of values `{args}`, got `{field_info.val}`")
+        raise ShiftTypeMismatchError(f"expected one of values `{args}`, got `{field_info.val}`")
     return field_info.val
 
 # noinspection PyTypeChecker
@@ -1805,9 +1824,9 @@ def shift_all_of_single_type_serializer(instance: Any, field_info: ShiftFieldInf
 
     # Must have one arg and val must be list-like
     if len(args) != 1:
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected one type arg, got `{args}`")
+        raise ShiftTypeMismatchError(f"expected one type arg, got `{args}`")
     if not isinstance(field_info.val, Iterable):
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected value to be list-like, got `{field_info.val}`")
+        raise ShiftTypeMismatchError(f"expected value to be list-like, got `{field_info.val}`")
 
     # All values must be of type args[0]
     for i, val in enumerate(field_info.val):
@@ -1815,7 +1834,7 @@ def shift_all_of_single_type_serializer(instance: Any, field_info: ShiftFieldInf
         try:
             field_info.val[i] = shift_type_serializer(instance, tmp_field_info, shift_info)
         except ShiftTypeMismatchError:
-            raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected all values to be of type `{type(args[0].__name__)}`, but got `{type(val).__name__}` at index {i}")
+            raise ShiftTypeMismatchError(f"expected all values to be of type `{type(args[0].__name__)}`, but got `{type(val).__name__}` at index {i}")
     return field_info.val
 
 # noinspection PyTypeChecker
@@ -1831,9 +1850,9 @@ def shift_all_of_many_type_serializer(instance: Any, field_info: ShiftFieldInfo,
 
     # Val must be list-like, and must have same len as args
     if not isinstance(field_info.val, Iterable):
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected value to be list-like, got `{field_info.val}`")
+        raise ShiftTypeMismatchError(f"expected value to be list-like, got `{field_info.val}`")
     if len(field_info.val) != len(args):
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected {len(args)} values, got {len(field_info.val)}")
+        raise ShiftTypeMismatchError(f"expected {len(args)} values, got {len(field_info.val)}")
 
     # All values must be of type args[i]
     for i, (val, arg) in enumerate(zip(field_info.val, args)):
@@ -1841,7 +1860,7 @@ def shift_all_of_many_type_serializer(instance: Any, field_info: ShiftFieldInfo,
         try:
             field_info.val[i] = shift_type_serializer(instance, tmp_field_info, shift_info)
         except ShiftTypeMismatchError as e:
-            raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected value at index {i} to be of type `{type(arg).__name__}`, but got `{type(val).__name__}`: {e}")
+            raise ShiftTypeMismatchError(f"expected value at index {i} to be of type `{type(arg).__name__}`, but got `{type(val).__name__}`: {e}")
     return field_info.val
 
 def shift_all_of_pair_type_serializer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any | None:
@@ -1856,7 +1875,7 @@ def shift_all_of_pair_type_serializer(instance: Any, field_info: ShiftFieldInfo,
 
     # Must be dict-like
     if not hasattr(field_info.val, "items"):
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected value to be dict-like, got `{field_info.val}`")
+        raise ShiftTypeMismatchError(f"expected value to be dict-like, got `{field_info.val}`")
 
     # All key-val pairs must match type
     new_val = {}
@@ -1865,7 +1884,7 @@ def shift_all_of_pair_type_serializer(instance: Any, field_info: ShiftFieldInfo,
             tmp_field_info = ShiftFieldInfo(f"{field_info.name}.{type(key).__name__}", args[0], key)
             key = shift_type_serializer(instance, tmp_field_info, shift_info)
         except ShiftTypeMismatchError as e:
-            raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected key at index {i} to be of type `{type(args[0].__name__)}`, but got `{type(key).__name__}`: {e}")
+            raise ShiftTypeMismatchError(f"expected key at index {i} to be of type `{type(args[0].__name__)}`, but got `{type(key).__name__}`: {e}")
 
         try:
             if len(args) > 1:
@@ -1874,7 +1893,7 @@ def shift_all_of_pair_type_serializer(instance: Any, field_info: ShiftFieldInfo,
             else:
                 new_val[key] = val
         except ShiftTypeMismatchError as e:
-            raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected val at index {i} to be of type `{type(args[1].__name__)}`, but got `{type(val).__name__}`: {e}")
+            raise ShiftTypeMismatchError(f"expected val at index {i} to be of type `{type(args[1].__name__)}`, but got `{type(val).__name__}`: {e}")
 
     return new_val
 
@@ -1890,14 +1909,14 @@ def shift_callable_type_serializer(instance: Any, field_info: ShiftFieldInfo, sh
 
     # Value must be callable
     if not callable(field_info.val):
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected callable, got `{type(field_info.val).__name__}`")
+        raise ShiftTypeMismatchError(f"expected callable, got `{type(field_info.val).__name__}`")
     if len(args) != 2:
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected type signature `(param_types, return_type)`, got `{args}`")
+        raise ShiftTypeMismatchError(f"expected type signature `(param_types, return_type)`, got `{args}`")
 
     try:
         sig = inspect.signature(field_info.val)
     except (ValueError, TypeError):
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` could not inspect function signature")
+        raise ShiftTypeMismatchError(f"could not inspect function signature")
     return field_info.val
 
 def shift_forward_ref_type_serializer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any | None:
@@ -1918,7 +1937,7 @@ def shift_forward_ref_type_serializer(instance: Any, field_info: ShiftFieldInfo,
         field_info.typ = resolved
         return shift_type_serializer(instance, field_info, shift_info)
     except Exception as e:
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` could not resolve forward reference `{field_info.typ}`: {e}")
+        raise ShiftTypeMismatchError(f"could not resolve forward reference `{field_info.typ}`: {e}")
     
 def shift_shift_type_serializer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any | None:
     """
@@ -1930,8 +1949,8 @@ def shift_shift_type_serializer(instance: Any, field_info: ShiftFieldInfo, shift
         if isinstance(field_info.val, Shift) or issubclass(field_info.val, Shift):
             return serialize(field_info.val)
     except Exception as e:
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` could not inspect value: {e}")
-    raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected Shift subclass or dict, got `{type(field_info.val).__name__}`")
+        raise ShiftTypeMismatchError(f"could not inspect value: {e}")
+    raise ShiftTypeMismatchError(f"expected Shift subclass or dict, got `{type(field_info.val).__name__}`")
 
 def shift_shift_field_type_serializer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any | None:
     """
@@ -1940,7 +1959,7 @@ def shift_shift_field_type_serializer(instance: Any, field_info: ShiftFieldInfo,
     """
 
     if not isinstance(field_info.default, ShiftField):
-        raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected ShiftField default, got `{type(field_info.default).__name__}`")
+        raise ShiftTypeMismatchError(f"expected ShiftField default, got `{type(field_info.default).__name__}`")
 
     if field_info.default.defer or field_info.default.defer_serialize:
         return None
@@ -1966,6 +1985,21 @@ def shift_type_serializer(instance: Any, field_info: ShiftFieldInfo, shift_info:
 
 # endregion
 # region Shift Processing Functions
+
+
+
+## Misc
+############
+
+def _build_field_error(field_name: str, error: Exception) -> ShiftFieldError | Exception:
+    if not isinstance(error, ShiftFieldError) and (isinstance(error, ShiftTypeMismatchError) or isinstance(error, UnknownShiftTypeError)):
+        return ShiftFieldError(field_name, error.msg)
+    return error
+
+def _build_error(error: Exception) -> ShiftError:
+    if isinstance(error, ShiftError):
+        return error
+    return ShiftError(str(error))
 
 
 
@@ -1996,7 +2030,10 @@ def _transform(info: ShiftInfo) -> None:
         try:
             _transform_field(field, info)
         except ShiftError as e:
-            info.errors.append(e)
+            e = _build_field_error(field.name, e)
+            if info.shift_config.fail_fast:
+                raise e
+            info.transform_errors.append(e)
 
 
 
@@ -2025,10 +2062,13 @@ def _validate(info: ShiftInfo) -> bool:
     for field in info.fields:
         try:
             if not _validate_field(field, info):
-                all_valid = False
-                raise ShiftFieldError(info.model_name, f"Validation failed for {field.name}")
+                raise ShiftFieldError(field.name, 'failed validation')
         except ShiftError as e:
-            info.errors.append(ShiftFieldError(info.model_name, f"Validation failed for {field.name}: {e}"))
+            e = _build_field_error(field.name, e)
+            if info.shift_config.fail_fast:
+                raise e
+            info.validation_errors.append(e)
+            all_valid = False
 
     return all_valid
 
@@ -2051,7 +2091,10 @@ def _set(info: ShiftInfo) -> None:
         try:
             _set_field(field, info)
         except ShiftError as e:
-            info.errors.append(e)
+            e = _build_field_error(field.name, e)
+            if info.shift_config.fail_fast:
+                raise e
+            info.set_errors.append(e)
 
 
 
@@ -2407,7 +2450,9 @@ def get_shift_info(cls: Any, instance: Any, data: dict) -> ShiftInfo:
             reprs=cached_info.reprs,
             serializers=cached_info.serializers,
             data=data,
-            errors=[]
+            transform_errors=[],
+            validation_errors=[],
+            set_errors=[]
         )
         return info
 
@@ -2434,7 +2479,9 @@ def get_shift_info(cls: Any, instance: Any, data: dict) -> ShiftInfo:
         reprs=decorators["reprs"],
         serializers=decorators["serializers"],
         data=data,
-        errors=[]
+        transform_errors=[],
+        validation_errors=[],
+        set_errors=[]
     )
 
     # Register info and return it
@@ -2477,17 +2524,18 @@ class Shift:
         # Run transform process
         _transform(info)
 
+        # Check for errors
+        if len(info.transform_errors):
+            raise ShiftModelError(self.__class__.__name__, 'transform', info.transform_errors)
+
     def validate(self, info: ShiftInfo=None, **data) -> bool:
         # Get shift info if not provided
         if info is None:
             info = get_shift_info(self.__class__, self, data)
 
         # Run validation, throw if fail
-        if not _validate(info):
-            errors = []
-            for e in info.errors:
-                errors.append(str(e))
-            raise ShiftFieldError(info.model_name, f"Validation failed: {errors}")
+        if not _validate(info) or len(info.validation_errors):
+            raise ShiftModelError(self.__class__.__name__, 'validation', info.validation_errors)
         return True
 
     def set(self, info: ShiftInfo=None, **data) -> None:
@@ -2497,11 +2545,10 @@ class Shift:
 
         # Run set process
         _set(info)
-        if len(info.errors):
-            errors = []
-            for e in info.errors:
-                errors.append(str(e))
-            raise ShiftFieldError(info.model_name, f"Set failed: {errors}")
+
+        # Check for errors
+        if len(info.set_errors):
+            raise ShiftModelError(self.__class__.__name__, 'set', info.set_errors)
 
     def __repr__(self, info: ShiftInfo=None) -> str:
         # Get shift info if not provided
