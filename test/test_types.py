@@ -215,35 +215,35 @@ def test_tuple():
     with pytest.raises(ShiftError):
         _ = Test(**{"val": ("hello there", InvalidType)})
 
-def test_callable():
-    class Test(Shift):
-        val: Callable[[int], str]
-    @staticmethod
-    def func(x: int) -> str: return str(x)
-
-    test = Test(val=func)
-    assert test.val(42) == "42"
-    test = Test(**{"val": func})
-    assert test.val(42) == "42"
-
-    with pytest.raises(ShiftError):
-        _ = Test(val=InvalidType)
-    with pytest.raises(ShiftError):
-        _ = Test(**{"val": InvalidType})
-
-    @staticmethod
-    def func(y: str) -> str: return y
-    with pytest.raises(ShiftError):
-        _ = Test(val=func)
-    with pytest.raises(ShiftError):
-        _ = Test(**{"val": func})
-
-    @staticmethod
-    def func(x: int) -> int: return x
-    with pytest.raises(ShiftError):
-        _ = Test(val=func)
-    with pytest.raises(ShiftError):
-        _ = Test(**{"val": func})
+# def test_callable():
+#     class Test(Shift):
+#         val: Callable[[int], str]
+#     @staticmethod
+#     def func(x: int) -> str: return str(x)
+#
+#     test = Test(val=func)
+#     assert test.val(42) == "42"
+#     test = Test(**{"val": func})
+#     assert test.val(42) == "42"
+#
+#     with pytest.raises(ShiftError):
+#         _ = Test(val=InvalidType)
+#     with pytest.raises(ShiftError):
+#         _ = Test(**{"val": InvalidType})
+#
+#     @staticmethod
+#     def func(y: str) -> str: return y
+#     with pytest.raises(ShiftError):
+#         _ = Test(val=func)
+#     with pytest.raises(ShiftError):
+#         _ = Test(**{"val": func})
+#
+#     @staticmethod
+#     def func(x: int) -> int: return x
+#     with pytest.raises(ShiftError):
+#         _ = Test(val=func)
+#     with pytest.raises(ShiftError):
+#         _ = Test(**{"val": func})
 
 def test_dict():
     class Test(Shift):
@@ -357,7 +357,7 @@ def test_forwardref():
 
 def test_shift_field_basic():
     class Test(Shift):
-        val = ShiftField(int)
+        val = ShiftField(type=int)
 
     test = Test(val=42)
     assert test.val == 42

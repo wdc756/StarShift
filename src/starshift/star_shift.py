@@ -1118,7 +1118,7 @@ def shift_callable_type_validator(instance: Any, field_info: ShiftFieldInfo, shi
             # Function has no annotation for this parameter
             continue
         try:
-            tmp_field_info = ShiftFieldInfo(f"{field_info.name}.{param.name}", expected_type, param.annotation)
+            tmp_field_info = ShiftFieldInfo(f"{field_info.name}.{param.name}", expected_type, param)
             if not shift_type_validator(instance, tmp_field_info, shift_info):
                 raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected parameter `{param.name}` to be of type `{type(expected_type).__name__}`, but got `{type(param.annotation).__name__}`")
         except ShiftTypeMismatchError as e:
@@ -1183,9 +1183,10 @@ def shift_shift_field_type_validator(instance: Any, field_info: ShiftFieldInfo, 
     if field_info.default.defer or field_info.default.defer_validation:
         return True
 
-    if field_info.default.validate(field_info, shift_info):
+    errors = field_info.default.validate(field_info, shift_info)
+    if not errors:
         return True
-    raise ShiftTypeMismatchError(f"Field `{field_info.name}` failed ShiftField validation")
+    raise ShiftTypeMismatchError(f"Field `{field_info.name}` failed ShiftField validation: {errors}")
 
 def shift_type_validator(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> bool:
     """
@@ -1254,7 +1255,8 @@ def shift_one_of_type_setter(instance: Any, field_info: ShiftFieldInfo, shift_in
     # One arg must match
     for arg in args:
         try:
-            tmp_field_info = ShiftFieldInfo(f"{field_info.name}.{type(arg).__name__}", arg, field_info.val)
+            arg_typ = arg if isinstance(arg, type) else type(arg)
+            tmp_field_info = ShiftFieldInfo(f"{field_info.name}.{type(arg).__name__}", arg_typ, field_info.val)
             return shift_type_setter(instance, tmp_field_info, shift_info)
         except ShiftTypeMismatchError:
             pass
