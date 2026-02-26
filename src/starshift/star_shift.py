@@ -8,7 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 # Check types in validation
-from typing import get_origin, get_args, get_type_hints, Any, Union, ForwardRef, Type, Optional, Literal, TypeAlias
+from typing import get_origin, get_args, get_type_hints, cast, Any, Union, ForwardRef, Type, Optional, Literal, TypeAlias
 from collections.abc import Iterable, Callable
 
 # Evaluate regex
@@ -625,6 +625,18 @@ def shift_init_function_wrapper(info: ShiftInfo, func: Callable) -> None:
 # endregion
 # region Builtin Type Functions
 
+## Misc
+#######
+
+def can_index(val: Any) -> bool:
+    """Returns True if val can be indexed, False otherwise"""
+    try:
+        _ = val[0]
+        val[0] = val[0]
+    except Exception:
+        return False
+    return True
+
 ## Transform
 ############
 
@@ -719,10 +731,9 @@ def shift_all_of_single_type_transformer(instance: Any, field_info: ShiftFieldIn
     if not isinstance(field_info.val, Iterable):
         raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected value to be list-like, got `{field_info.val}`")
 
-    # Handle case where typ is set or frozen set (convert to list and then back)
-    is_set = isinstance(field_info.val, set)
-    is_frozenset = isinstance(field_info.val, frozenset)
-    if is_set or is_frozenset:
+    # Handle case where typ is not indexable
+    indexable = can_index(field_info.val)
+    if not indexable:
         field_info.val = list(field_info.val)
 
     # All values must be of type args[0]
@@ -733,12 +744,9 @@ def shift_all_of_single_type_transformer(instance: Any, field_info: ShiftFieldIn
         except ShiftTypeMismatchError:
             raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected all values to be of type `{type(args[0].__name__)}`, but got `{type(val).__name__}` at index {i}")
 
-    # Convert back to set or frozen set if needed
-    if is_set:
-        field_info.val = set(field_info.val)
-    elif is_frozenset:
-        field_info.val = frozenset(field_info.val)
-
+    # Convert back typ if needed
+    if not indexable:
+        field_info.val = get_origin(field_info.typ)(field_info.val)
     return field_info.val
 
 # noinspection PyTypeChecker
@@ -758,6 +766,11 @@ def shift_all_of_many_type_transformer(instance: Any, field_info: ShiftFieldInfo
     if len(field_info.val) != len(args):
         raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected {len(args)} values, got {len(field_info.val)}")
 
+    # Handle case where typ is not indexable
+    indexable = can_index(field_info.val)
+    if not indexable:
+        field_info.val = list(field_info.val)
+
     # All values must be of type args[i]
     for i, (val, arg) in enumerate(zip(field_info.val, args)):
         tmp_field_info = ShiftFieldInfo(f"{field_info.name}.{type(arg).__name__}", arg, val)
@@ -765,6 +778,10 @@ def shift_all_of_many_type_transformer(instance: Any, field_info: ShiftFieldInfo
             field_info.val[i] = shift_type_transformer(instance, tmp_field_info, shift_info)
         except ShiftTypeMismatchError as e:
             raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected value at index {i} to be of type `{type(arg).__name__}`, but got `{type(val).__name__}`: {e}")
+
+    # Convert back typ if needed
+    if not indexable:
+        field_info.val = get_origin(field_info.typ)(field_info.val)
     return field_info.val
 
 def shift_all_of_pair_type_transformer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any:
@@ -1275,10 +1292,9 @@ def shift_all_of_single_type_setter(instance: Any, field_info: ShiftFieldInfo, s
     if not isinstance(field_info.val, Iterable):
         raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected value to be list-like, got `{field_info.val}`")
 
-    # Handle case where typ is set or frozen set (convert to list and then back)
-    is_set = isinstance(field_info.val, set)
-    is_frozenset = isinstance(field_info.val, frozenset)
-    if is_set or is_frozenset:
+    # Handle case where typ is not indexable
+    indexable = can_index(field_info.val)
+    if not indexable:
         field_info.val = list(field_info.val)
 
     # All values must be of type args[0]
@@ -1289,12 +1305,9 @@ def shift_all_of_single_type_setter(instance: Any, field_info: ShiftFieldInfo, s
         except ShiftTypeMismatchError:
             raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected all values to be of type `{type(args[0].__name__)}`, but got `{type(val).__name__}` at index {i}")
 
-    # Convert back to set or frozen set if needed
-    if is_set:
-        field_info.val = set(field_info.val)
-    elif is_frozenset:
-        field_info.val = frozenset(field_info.val)
-
+    # Convert back typ if needed
+    if not indexable:
+        field_info.val = get_origin(field_info.typ)(field_info.val)
     return field_info.val
 
 # noinspection PyTypeChecker
@@ -1314,6 +1327,11 @@ def shift_all_of_many_type_setter(instance: Any, field_info: ShiftFieldInfo, shi
     if len(field_info.val) != len(args):
         raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected {len(args)} values, got {len(field_info.val)}")
 
+    # Handle case where typ is not indexable
+    indexable = can_index(field_info.val)
+    if not indexable:
+        field_info.val = list(field_info.val)
+
     # All values must be of type args[i]
     for i, (val, arg) in enumerate(zip(field_info.val, args)):
         tmp_field_info = ShiftFieldInfo(f"{field_info.name}.{type(arg).__name__}", arg, val)
@@ -1321,6 +1339,10 @@ def shift_all_of_many_type_setter(instance: Any, field_info: ShiftFieldInfo, shi
             field_info.val[i] = shift_type_setter(instance, tmp_field_info, shift_info)
         except ShiftTypeMismatchError as e:
             raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected value at index {i} to be of type `{type(arg).__name__}`, but got `{type(val).__name__}`: {e}")
+
+    # Convert back typ if needed
+    if not indexable:
+        field_info.val = get_origin(field_info.typ)(field_info.val)
     return field_info.val
 
 def shift_all_of_pair_type_setter(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any:
