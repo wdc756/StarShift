@@ -1,6 +1,6 @@
 # Shift Types
 ## Errors
-from .star_shift import ShiftFieldError, ShiftTypeMismatchError, UnknownShiftTypeError
+from .star_shift import ShiftError, ShiftFieldError, ShiftTypeMismatchError, UnknownShiftTypeError
 ## Metadata
 from .star_shift import Missing, ShiftConfig, DEFAULT_SHIFT_CONFIG, ShiftInfo, ShiftFieldInfo, ShiftField
 ## Type Aliases

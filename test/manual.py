@@ -13,10 +13,22 @@ InvalidType = object()
 
 def run():
     class Test(Shift):
-        val: int
+        val: set[int]
 
-    test = Test(val=42)
-    print(test)
+    test = Test(val={4, 5, 6, 1, 2, 3})
+    assert test.val == {4, 5, 6, 1, 2, 3}
+    test = Test(**{"val": {4, 5, 6, 1, 2, 3}})
+    assert test.val == {4, 5, 6, 1, 2, 3}
+
+    with pytest.raises(ShiftError):
+        _ = Test(val=InvalidType)
+    with pytest.raises(ShiftError):
+        _ = Test(**{"val": InvalidType})
+
+    with pytest.raises(ShiftError):
+        _ = Test(val={4, 5, 6, 1, 2, InvalidType})
+    with pytest.raises(ShiftError):
+        _ = Test(**{"val": {4, 5, 6, 1, 2, InvalidType}})
 
 if __name__ == '__main__':
     run()
