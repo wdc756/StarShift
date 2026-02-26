@@ -32,19 +32,19 @@ class Task(Shift):
     @shift_validator('title', 'assignees', 'admins')
     def _validate_non_empty_lists_and_strs(self, field: ShiftFieldInfo, info: ShiftInfo) -> bool:
         if len(field.val) == 0:
-            raise ShiftError('Task', f"{field.name} cannot be empty")
+            raise ShiftFieldError('Task', f"{field.name} cannot be empty")
         return True
 
     @shift_validator('due_date')
     def _validate_due_date(self, val: datetime) -> bool:
         if val <= datetime.now():
-            raise ShiftError('Task', f"due date must be in the future")
+            raise ShiftFieldError('Task', f"due date must be in the future")
         return True
 
     def _validate_all_admins_are_assignees(self):
         for admin in self.admins:
             if admin not in self.assignees:
-                raise ShiftError('Task', f"All admins must be assignees")
+                raise ShiftFieldError('Task', f"All admins must be assignees")
 
 
 
@@ -63,7 +63,7 @@ class Group(Shift):
     @shift_validator('title', 'description', 'members', 'admins')
     def _validate_non_empty_lists_and_strs(self, field: ShiftFieldInfo, info: ShiftInfo) -> bool:
         if len(field.val) == 0:
-            raise ShiftError('Group', f"{field.name} cannot be empty")
+            raise ShiftFieldError('Group', f"{field.name} cannot be empty")
         return True
 
 class Employee(Shift):
@@ -76,7 +76,7 @@ class Employee(Shift):
     @shift_validator('first_name', 'last_name')
     def _validate_non_empty_name(self, field: ShiftFieldInfo, info: ShiftInfo) -> bool:
         if len(field.val) == 0:
-            raise ShiftError('Task', f"{field.name} cannot be empty")
+            raise ShiftFieldError('Task', f"{field.name} cannot be empty")
         return True
 
 class Company(Shift):
@@ -861,7 +861,7 @@ def test_invalid_company_datasets():
     )
     register_shift_type(datetime, date_shift_type)
 
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Company(**invalid_company_1)
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Company(**invalid_company_2)

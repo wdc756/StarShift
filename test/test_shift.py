@@ -62,7 +62,7 @@ def test_shift_validate():
         val: int = 42
 
     test = Test()
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         test.validate(**{"val": InvalidType})
     assert test.val == 42
 

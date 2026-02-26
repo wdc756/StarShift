@@ -242,7 +242,7 @@ def test_serialize():
 
     test = Test(val=42)
 
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = serialize(test)
 
     assert serialize(test, throw=False) is None

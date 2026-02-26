@@ -64,7 +64,7 @@ def test_set_to_private():
     class Test(Shift):
         _val: int = 42
 
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(_val=42)
 
     class Test(Shift):

@@ -13,10 +13,10 @@ InvalidType = object()
 
 def run():
     class Test(Shift):
-        val: int | None = ShiftField(defer_transform=True, default=88)
+        val: int
 
-    test = Test()
-    assert test.val is Missing
+    test = Test(val=42)
+    print(test)
 
 if __name__ == '__main__':
     run()

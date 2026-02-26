@@ -54,16 +54,23 @@ _shift_init_functions: dict[Callable, bool] = {}
 
 class ShiftError(Exception):
     """Base class for all starshift errors"""
+    def __init__(self, msg: str):
+        super().__init__(msg)
+
+class ShiftFieldError(ShiftError):
+    """Field-related errors"""
     def __init__(self, model_name: str, msg: str):
-        super().__init__(f"StarShift: {model_name}: {msg}")
+        super().__init__(f"{model_name}: {msg}")
 
 class ShiftTypeMismatchError(ShiftError):
     """Raised when a field's type does not match the expected type"""
-    pass
+    def __init__(self, msg: str):
+        super().__init__(msg)
 
 class UnknownShiftTypeError(ShiftError):
     """Raised when a field's type is not registered"""
-    pass
+    def __init__(self, msg: str):
+        super().__init__(msg)
 
 
 
@@ -172,7 +179,7 @@ class ShiftInfo:
         reprs (dict[str, Callable[[Any], str] | Callable[[ShiftField, ShiftInfo], str]]): Dict of field names to reprs
         serializers (dict[str, Callable[[Any], dict[str, Any] | Callable[[ShiftField, ShiftInfo], dict[str, Any]]]]): Dict of field names to serializers
         data (dict[str, Any]): Dict of field names to values (kwargs)
-        errors (list[ShiftError]): List of errors accumulated during validation
+        errors (list[ShiftFieldError]): List of errors accumulated during validation
     """
     instance: Any
     model_name: str
@@ -188,7 +195,7 @@ class ShiftInfo:
     reprs: dict[str, ShiftRepr]
     serializers: dict[str, ShiftSerializer]
     data: dict[str, Any]
-    errors: list[ShiftError]
+    errors: list[ShiftFieldError]
 
 
 
@@ -591,7 +598,7 @@ def shift_function_wrapper(field: ShiftFieldInfo, info: ShiftInfo, func: Callabl
         return func(info.instance, field, info)
 
     # Else invalid signature
-    raise ShiftError(info.model_name, f"Invalid signature for {field.name}: {func.__name__}")
+    raise ShiftFieldError(info.model_name, f"Invalid signature for {field.name}: {func.__name__}")
 
 def shift_init_function_wrapper(info: ShiftInfo, func: Callable) -> None:
     """Wrapper to automatically determine if the init function is advanced or not, and call appropriately"""
@@ -615,7 +622,7 @@ def shift_init_function_wrapper(info: ShiftInfo, func: Callable) -> None:
         return func(info.instance, info)
 
     # Else invalid signature
-    raise ShiftError(info.model_name, f"Invalid signature for {func.__name__}")
+    raise ShiftFieldError(info.model_name, f"Invalid signature for {func.__name__}")
 
 
 
@@ -632,7 +639,7 @@ def shift_missing_type_transformer(instance: Any, field_info: ShiftFieldInfo, sh
     """
 
     if field_info.val is Missing:
-        raise ShiftTypeMismatchError(shift_info.model_name, f"Field `{field_info.name}` expected a value, got `MISSING`")
+        raise ShiftTypeMismatchError(f"`{field_info.name}` expected a value, got `MISSING`")
     return field_info.val
 
 def shift_base_type_transformer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any:
@@ -671,7 +678,7 @@ def shift_one_of_type_transformer(instance: Any, field_info: ShiftFieldInfo, shi
     Raises ShiftTypeMismatchError if no type in field_info.typ.args matches field_info.val.
     """
 
-    args = field_info.typ.args
+    args = get_args(field_info.typ)
     if not args:
         return field_info.val
 
@@ -925,7 +932,7 @@ def shift_one_of_type_validator(instance: Any, field_info: ShiftFieldInfo, shift
     Raises ShiftTypeMismatchError if no type in field_info.typ.args matches field_info.val.
     """
 
-    args = field_info.typ.args
+    args = get_args(field_info.typ)
     if not args:
         return True
 
@@ -1214,7 +1221,7 @@ def shift_one_of_type_setter(instance: Any, field_info: ShiftFieldInfo, shift_in
     Raises ShiftTypeMismatchError if no type in field_info.typ.args matches field_info.val.
     """
 
-    args = field_info.typ.args
+    args = get_args(field_info.typ)
     if not args:
         return field_info.val
 
@@ -1464,7 +1471,7 @@ def shift_one_of_type_repr(instance: Any, field_info: ShiftFieldInfo, shift_info
     Raises ShiftTypeMismatchError if no type in field_info.typ.args matches field_info.val.
     """
 
-    args = field_info.typ.args
+    args = get_args(field_info.typ)
     if not args:
         return repr(field_info.val)
 
@@ -1711,7 +1718,7 @@ def shift_one_of_type_serializer(instance: Any, field_info: ShiftFieldInfo, shif
     Raises ShiftTypeMismatchError if no type in field_info.typ.args matches field_info.val.
     """
 
-    args = field_info.typ.args
+    args = get_args(field_info.typ)
     if not args:
         return field_info.val
 
@@ -1942,7 +1949,7 @@ def _transform(info: ShiftInfo) -> None:
     for field in info.fields:
         try:
             _transform_field(field, info)
-        except ShiftError as e:
+        except ShiftFieldError as e:
             info.errors.append(e)
 
 
@@ -1973,9 +1980,9 @@ def _validate(info: ShiftInfo) -> bool:
         try:
             if not _validate_field(field, info):
                 all_valid = False
-                raise ShiftError(info.model_name, f"Validation failed for {field.name}")
-        except ShiftError as e:
-            info.errors.append(ShiftError(info.model_name, f"Validation failed for {field.name}: {e}"))
+                raise ShiftFieldError(info.model_name, f"Validation failed for {field.name}")
+        except ShiftFieldError as e:
+            info.errors.append(ShiftFieldError(info.model_name, f"Validation failed for {field.name}: {e}"))
 
     return all_valid
 
@@ -1991,13 +1998,13 @@ def _set_field(field: ShiftFieldInfo, info: ShiftInfo) -> None:
         return
 
     # Run type set
-    info.instance.setattr(field.name, shift_type_setter(field.val, field, info))
+    setattr(info.instance, field.name, shift_type_setter(field.val, field, info))
 
 def _set(info: ShiftInfo) -> None:
     for field in info.fields:
         try:
             _set_field(field, info)
-        except ShiftError as e:
+        except ShiftFieldError as e:
             info.errors.append(e)
 
 
@@ -2088,7 +2095,7 @@ def get_shift_config(cls, fields: dict) -> ShiftConfig | None:
     # Get shift_config from cls if it exists
     shift_config = fields.get("__shift_config__")
     if shift_config and not isinstance(shift_config, ShiftConfig):
-        raise ShiftError(cls.__name__, "`__shift_config__` must be a ShiftConfig instance")
+        raise ShiftFieldError(cls.__name__, "`__shift_config__` must be a ShiftConfig instance")
 
     # Get shift_config from cls attributes if kwargs present
     config_kwargs = {}
@@ -2216,7 +2223,7 @@ def get_fields(cls: Any, fields: dict, data: dict, shift_config: ShiftConfig = D
 
         # If field is private, has a data-set value, and allow setting is false, throw
         if field_name.startswith("_") and val is not Missing and not shift_config.allow_private_field_setting:
-            raise ShiftError(cls.__name__, f"{field_name} has a set value in data, but allow_private_field_setting is False")
+            raise ShiftFieldError(cls.__name__, f"{field_name} has a set value in data, but allow_private_field_setting is False")
 
         # If field is private and no default is set, add an implicit None default and change type to Optional[typ]
         if field_name.startswith('_') and default is Missing:
@@ -2263,7 +2270,7 @@ def get_fields(cls: Any, fields: dict, data: dict, shift_config: ShiftConfig = D
 
             # If field is private, has a data-set value, and allow setting is false, throw
             if field_name.startswith("_") and val is not Missing and not shift_config.allow_private_field_setting:
-                raise ShiftError(cls.__name__,f"{field_name} has a set value in data, but allow_private_field_setting is False")
+                raise ShiftFieldError(cls.__name__, f"{field_name} has a set value in data, but allow_private_field_setting is False")
 
         # If field is private and no default is set, add an implicit None default
         if field_name.startswith('_') and default is Missing:
@@ -2289,7 +2296,7 @@ def get_updated_fields(instance: Any, fields: list[ShiftFieldInfo], data: dict, 
     for field in fields:
         # If name is private, a data val is present, and allow setting is false, throw
         if field.name.startswith("_") and field.name in data and not shift_config.allow_private_field_setting:
-            raise ShiftError(instance.__class__.__name__, f"{field.name} has a set value in data, but allow_private_field_setting is False")
+            raise ShiftFieldError(instance.__class__.__name__, f"{field.name} has a set value in data, but allow_private_field_setting is False")
 
         new_val = data.get(field.name, field.default)
 
@@ -2426,7 +2433,7 @@ class Shift:
             errors = []
             for e in info.errors:
                 errors.append(str(e))
-            raise ShiftError(info.model_name, f"Validation failed: {errors}")
+            raise ShiftFieldError(info.model_name, f"Validation failed: {errors}")
         return True
 
     def set(self, info: ShiftInfo=None, **data) -> None:
@@ -2440,7 +2447,7 @@ class Shift:
             errors = []
             for e in info.errors:
                 errors.append(str(e))
-            raise ShiftError(info.model_name, f"Set failed: {errors}")
+            raise ShiftFieldError(info.model_name, f"Set failed: {errors}")
 
     def __repr__(self, info: ShiftInfo=None) -> str:
         # Get shift info if not provided
@@ -2501,7 +2508,7 @@ def register_shift_type(typ: Type, shift_type: ShiftType) -> None:
 def deregister_shift_type(typ: Type) -> None:
     """Deregisters a shift type"""
     if typ not in _shift_types:
-        raise ShiftError("<module>", f"Type `{typ}` is not registered")
+        raise ShiftFieldError("<module>", f"Type `{typ}` is not registered")
     del _shift_types[typ]
 
 def clear_shift_types() -> None:
@@ -2528,7 +2535,7 @@ def deregister_forward_ref(ref: str | ForwardRef) -> None:
     if isinstance(ref, ForwardRef):
         ref = ref.__forward_arg__
     if ref not in _resolved_forward_refs:
-        raise ShiftError("<module>", f"Forward ref `{ref}` is not registered")
+        raise ShiftFieldError("<module>", f"Forward ref `{ref}` is not registered")
     del _resolved_forward_refs[ref]
 
 def clear_forward_refs() -> None:
@@ -2633,7 +2640,7 @@ def serialize(instance: Any, throw: bool = True) -> dict[str, Any] | None:
     """Try to call instance.serialize() if the instance has the attribute, else it conditionally throws an error"""
     if not hasattr(instance, "serialize") or not callable(instance.serialize):
         if throw:
-            raise ShiftError(instance.__class__.__name__, f".serialize() does not exist on the given instance, but serialize was called")
+            raise ShiftFieldError(instance.__class__.__name__, f".serialize() does not exist on the given instance, but serialize was called")
         return None
     return instance.serialize() # noqa
 
@@ -2693,7 +2700,7 @@ def resolve_forward_ref(typ: str | ForwardRef, info: ShiftInfo) -> Type:
         return resolved
 
     # Else raise exception
-    raise ShiftError(info.model_name, f"Could not resolve forward reference: {typ}")
+    raise ShiftFieldError(info.model_name, f"Could not resolve forward reference: {typ}")
 
 # Setup starshift
 reset_starshift_globals()

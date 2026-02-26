@@ -292,7 +292,7 @@ _ = Class(val=SimpleList([4, 5, 6.0]))
 A class that is used for sentinel values internally. (Allows StarShift to
 distinguish between `None` and a value the user didn't set)
 
-### `ShiftError`
+### `ShiftFieldError`
 
 An exception class used for all internal errors, that accepts 
 `(model_name: str, msg: str)`
@@ -363,7 +363,7 @@ resolved forward ref from cache or attempts to resolve the forward ref automatic
 ### `serialize`
 
 A method that accepts `(instance: Any, throw: bool = True)` and attempts to call
-instance.serialize() if it exists, and if it doesn't and throws is true a `ShiftError`
+instance.serialize() if it exists, and if it doesn't and throws is true a `ShiftFieldError`
 is raised.
 
 ### `reset_starshift_globals`

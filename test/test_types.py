@@ -25,9 +25,9 @@ def test_none():
     test = Test(**{"val": None})
     assert test.val is None
 
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(val=InvalidType)
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(**{"val": InvalidType})
 
 def test_missing_to_none():
@@ -39,9 +39,9 @@ def test_missing_to_none():
     test = Test(**{})
     assert test.val is None
 
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(val=InvalidType)
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(**{"val": InvalidType})
 
 def test_int():
@@ -53,9 +53,9 @@ def test_int():
     test = Test(**{"val": 42})
     assert test.val == 42
 
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(val=InvalidType)
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(**{"val": InvalidType})
 
 def test_bool():
@@ -67,9 +67,9 @@ def test_bool():
     test = Test(**{"val": True})
     assert test.val is True
 
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(val=InvalidType)
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(**{"val": InvalidType})
 
 def test_float():
@@ -81,9 +81,9 @@ def test_float():
     test = Test(**{"val": 1.21})
     assert test.val == 1.21
 
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(val=InvalidType)
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(**{"val": InvalidType})
 
 def test_str():
@@ -95,9 +95,9 @@ def test_str():
     test = Test(**{"val": "hello there"})
     assert test.val == "hello there"
 
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(val=InvalidType)
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(**{"val": InvalidType})
 
 def test_bytes():
@@ -109,9 +109,9 @@ def test_bytes():
     test = Test(**{"val": b"hello there"})
     assert test.val == b"hello there"
 
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(val=InvalidType)
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(**{"val": InvalidType})
 
 def test_bytearray():
@@ -123,9 +123,9 @@ def test_bytearray():
     test = Test(**{"val": bytearray(b"hello there")})
     assert test.val == bytearray(b"hello there")
 
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(val=InvalidType)
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(**{"val": InvalidType})
 
 def test_any():
@@ -148,14 +148,14 @@ def test_list():
     test = Test(**{"val": [4, 5, 6, 1, 2, 3]})
     assert test.val == [4, 5, 6, 1, 2, 3]
 
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(val=InvalidType)
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(**{"val": InvalidType})
 
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(val=[4, 5, 6, 1, 2, InvalidType])
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(**{"val": [4, 5, 6, 1, 2, InvalidType]})
 
 def test_set():
@@ -167,14 +167,14 @@ def test_set():
     test = Test(**{"val": {4, 5, 6, 1, 2, 3}})
     assert test.val == {4, 5, 6, 1, 2, 3}
 
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(val=InvalidType)
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(**{"val": InvalidType})
 
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(val={4, 5, 6, 1, 2, InvalidType})
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(**{"val": {4, 5, 6, 1, 2, InvalidType}})
 
 def test_frozenset():
@@ -186,14 +186,14 @@ def test_frozenset():
     test = Test(**{"val": frozenset({4, 5, 6, 1, 2, 3})})
     assert test.val == frozenset({4, 5, 6, 1, 2, 3})
 
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(val=InvalidType)
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(**{"val": InvalidType})
 
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(val=frozenset({4, 5, 6, 1, 2, InvalidType}))
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(**{"val": frozenset({4, 5, 6, 1, 2, InvalidType})})
 
 def test_tuple():
@@ -205,14 +205,14 @@ def test_tuple():
     test = Test(**{"val": ("hello there", 42)})
     assert test.val == ("hello there", 42)
 
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(val=InvalidType)
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(**{"val": InvalidType})
 
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(val=("hello there", InvalidType))
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(**{"val": ("hello there", InvalidType)})
 
 def test_callable():
@@ -226,23 +226,23 @@ def test_callable():
     test = Test(**{"val": func})
     assert test.val(42) == "42"
 
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(val=InvalidType)
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(**{"val": InvalidType})
 
     @staticmethod
     def func(y: str) -> str: return y
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(val=func)
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(**{"val": func})
 
     @staticmethod
     def func(x: int) -> int: return x
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(val=func)
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(**{"val": func})
 
 def test_dict():
@@ -254,14 +254,14 @@ def test_dict():
     test = Test(**{"val": {"hello there": 42}})
     assert test.val == {"hello there": 42}
 
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(val=InvalidType)
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(**{"val": InvalidType})
 
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(val={"hello there": InvalidType})
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(**{"val": {"hello there": InvalidType}})
 
 def test_union():
@@ -278,9 +278,9 @@ def test_union():
     test = Test(**{"val": "hello there"})
     assert test.val == "hello there"
 
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(val=InvalidType)
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(**{"val": InvalidType})
 
 def test_optional():
@@ -309,14 +309,14 @@ def test_literal():
     test = Test(**{"val": "I have a bad feeling about this"})
     assert test.val == "I have a bad feeling about this"
 
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(val=InvalidType)
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(**{"val": InvalidType})
 
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(val="invalid")
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(**{"val": "invalid"})
 
 class TForwardRef(Shift):
@@ -333,14 +333,14 @@ def test_shift():
     test = B(**{"ref": A(val=42)})
     assert test.ref.val == 42
 
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = B(ref=InvalidType)
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = B(**{"ref": InvalidType})
 
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = B(ref=A(val=InvalidType))
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = B(**{"ref": A(val=InvalidType)})
 
 def test_forwardref():
@@ -350,9 +350,9 @@ def test_forwardref():
     test = TForwardRef(**{"val": ref})
     assert test.val == ref
 
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = TForwardRef(val=InvalidType)
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = TForwardRef(**{"val": InvalidType})
 
 def test_shift_field_basic():
@@ -365,8 +365,8 @@ def test_shift_field_basic():
     test = Test(**{"val": 42})
     assert test.val == 42
 
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(val=InvalidType)
 
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(**{"val": InvalidType})
