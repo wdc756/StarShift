@@ -13,19 +13,12 @@ InvalidType = object()
 
 def run():
     class Test(Shift):
-        val = ShiftField(type=int)
+        val: int = 42
 
-    test = Test(val=42)
-    assert test.val == 42
-
-    test = Test(**{"val": 42})
-    assert test.val == 42
-
+    test = Test()
     with pytest.raises(ShiftError):
-        _ = Test(val=InvalidType)
-
-    with pytest.raises(ShiftError):
-        _ = Test(**{"val": InvalidType})
+        test.validate(**{"val": InvalidType})
+    assert test.val == 42
 
 if __name__ == '__main__':
     run()

@@ -176,7 +176,7 @@ class ShiftInfo:
         reprs (dict[str, Callable[[Any], str] | Callable[[ShiftField, ShiftInfo], str]]): Dict of field names to reprs
         serializers (dict[str, Callable[[Any], dict[str, Any] | Callable[[ShiftField, ShiftInfo], dict[str, Any]]]]): Dict of field names to serializers
         data (dict[str, Any]): Dict of field names to values (kwargs)
-        errors (list[ShiftFieldError]): List of errors accumulated during validation
+        errors (list[ShiftError]): List of errors accumulated during validation
     """
     instance: Any
     model_name: str
@@ -192,7 +192,7 @@ class ShiftInfo:
     reprs: dict[str, ShiftRepr]
     serializers: dict[str, ShiftSerializer]
     data: dict[str, Any]
-    errors: list[ShiftFieldError]
+    errors: list[ShiftError]
 
 
 
@@ -1995,7 +1995,7 @@ def _transform(info: ShiftInfo) -> None:
     for field in info.fields:
         try:
             _transform_field(field, info)
-        except ShiftFieldError as e:
+        except ShiftError as e:
             info.errors.append(e)
 
 
@@ -2027,7 +2027,7 @@ def _validate(info: ShiftInfo) -> bool:
             if not _validate_field(field, info):
                 all_valid = False
                 raise ShiftFieldError(info.model_name, f"Validation failed for {field.name}")
-        except ShiftFieldError as e:
+        except ShiftError as e:
             info.errors.append(ShiftFieldError(info.model_name, f"Validation failed for {field.name}: {e}"))
 
     return all_valid
@@ -2050,7 +2050,7 @@ def _set(info: ShiftInfo) -> None:
     for field in info.fields:
         try:
             _set_field(field, info)
-        except ShiftFieldError as e:
+        except ShiftError as e:
             info.errors.append(e)
 
 
@@ -2058,37 +2058,41 @@ def _set(info: ShiftInfo) -> None:
 ## Repr
 #######
 
-def _repr_field(field: ShiftFieldInfo, info: ShiftInfo) -> str:
+def _repr_field(field: ShiftFieldInfo, info: ShiftInfo) -> str | None:
     # If field repr, call
     if field.name in info.reprs:
-        return f"{field.name}={shift_function_wrapper(field, info, info.reprs[field.name])}"
+        return str(shift_function_wrapper(field, info, info.reprs[field.name]))
 
     # If field name is private and config set to exclude, return
     if field.name.startswith("_") and not info.shift_config.include_private_fields_in_serialization:
-        return ""
+        return None
 
     # If field is default value and config set to exclude, return default value repr
     if field.val == field.default and not info.shift_config.include_default_fields_in_serialization:
-        return ""
+        return None
 
     # Run type repr
-    res = shift_type_repr(info.instance, field, info)
-    if len(res) and isinstance(field.default, ShiftField):
-        if field.default.repr_exclude:
-            return ""
-        if field.default.repr_as:
-            return f"{field.default.repr_as}={res}"
-    return f"{field.name}={res}"
+    return shift_type_repr(info.instance, field, info)
 
 def _repr(info: ShiftInfo) -> str:
-    res: list[str] = []
+    result: list[str] = []
     if info.shift_config.include_private_fields_in_serialization and (info.shift_config != DEFAULT_SHIFT_CONFIG or info.shift_config.include_default_fields_in_serialization):
-        res.append(f"__shift_config__={repr(info.shift_config)}")
+        result.append(f"__shift_config__={repr(info.shift_config)}")
     for field in info.fields:
-        r = (_repr_field(field, info))
-        if r and len(r):
-            res.append(r)
-    return f"{info.model_name}({', '.join(res)})"
+        res = (_repr_field(field, info))
+
+        # Handle field name
+        if res is not None and isinstance(field.default, ShiftField):
+            if field.default.repr_exclude:
+                continue
+            if field.default.repr_as:
+                res = f"{field.default.repr_as}={res}"
+        elif res is not None:
+            res = f"{field.name}={res}"
+
+        if res is not None:
+            result.append(res)
+    return f"{info.model_name}({', '.join(result)})"
 
 
 
@@ -2109,13 +2113,7 @@ def _serialize_field(field: ShiftFieldInfo, info: ShiftInfo) -> dict | None:
         return None
 
     # Run type serializer
-    res = shift_type_serializer(info.instance, field, info)
-    if res is not None and isinstance(field.default, ShiftField):
-        if field.default.serializer_exclude:
-            return None
-        if field.default.serialize_as:
-            return {field.default.serialize_as: res}
-    return {field.name: res}
+    return shift_type_serializer(info.instance, field, info)
 
 def _serialize(info: ShiftInfo) -> dict:
     result = {}
@@ -2123,6 +2121,16 @@ def _serialize(info: ShiftInfo) -> dict:
         result["__shift_config__"] = serialize(info.shift_config)
     for field in info.fields:
         res = _serialize_field(field, info)
+
+        # Handle field name
+        if res is not None and isinstance(field.default, ShiftField):
+            if field.default.serializer_exclude:
+                continue
+            if field.default.serialize_as:
+                res = {field.default.serialize_as: res}
+        elif res is not None:
+            res = {field.name: res}
+
         if res is not None:
             result.update(res)
     return result

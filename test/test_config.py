@@ -24,29 +24,22 @@ def test_default_config():
     info = get_shift_info(Test, test, {})
     assert info.shift_config == DEFAULT_SHIFT_CONFIG
 
-    print(
-        f"BEFORE SET: DEFAULT_SHIFT_CONFIG.verbosity = {DEFAULT_SHIFT_CONFIG.verbosity}, id = {id(DEFAULT_SHIFT_CONFIG)}")
-
-    DEFAULT_SHIFT_CONFIG.verbosity = 1
+    DEFAULT_SHIFT_CONFIG.fail_fast = True
     clear_shift_info_registry()
     test = Test(val=42)
     info = get_shift_info(Test, test, {})
-    print(
-        f"AFTER SET: DEFAULT_SHIFT_CONFIG.verbosity = {DEFAULT_SHIFT_CONFIG.verbosity}, id = {id(DEFAULT_SHIFT_CONFIG)}")
-    assert info.shift_config.verbosity == 1
+    assert info.shift_config.fail_fast == True
 
-    DEFAULT_SHIFT_CONFIG.verbosity = 0
+    DEFAULT_SHIFT_CONFIG.fail_fast = False
 
 def test_config_override():
     class Test(Shift):
-        __shift_config__ = ShiftConfig(verbosity=1)
+        __shift_config__ = ShiftConfig(fail_fast=True)
         val: int
 
     test = Test(val=42)
     info = get_shift_info(Test, test, {})
-    assert info.shift_config.verbosity == 1
-
-# There's not a good way to test verbosity because its print() calls
+    assert info.shift_config.fail_fast == True
 
 def test_do_processing():
     # Default is tested implicitly by most other tests

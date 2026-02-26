@@ -39,9 +39,9 @@ def test_get_shift_config():
     assert get_shift_config(Test, Test.__dict__.copy()) == DEFAULT_SHIFT_CONFIG
 
     class Test(Shift):
-        __shift_config__ = ShiftConfig(verbosity=1)
+        __shift_config__ = ShiftConfig(fail_fast=True)
 
-    assert get_shift_config(Test, Test.__dict__.copy()).verbosity == 1
+    assert get_shift_config(Test, Test.__dict__.copy()).fail_fast == True
 
 def test_get_field_decorators():
     class Test(Shift):

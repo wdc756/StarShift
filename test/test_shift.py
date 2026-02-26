@@ -51,7 +51,6 @@ def test_shift_has_methods():
     assert hasattr(test, "__ne__")
     assert hasattr(test, "__hash__")
     assert hasattr(test, "__copy__")
-    assert hasattr(test, "__deepcopy__")
 
 # We don't need to test __init__ because those are validated when everything else works
 

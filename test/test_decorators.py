@@ -61,6 +61,10 @@ def test_shift_transformer_pre_skip():
         def validate_val(self, val):
             return True
 
+        @shift_setter('val')
+        def set_val(self, val):
+            setattr(self, 'val', val)
+
     test = Test(val=42)
     assert test.val == "42"
 
@@ -110,12 +114,20 @@ def test_shift_validator_pre_skip():
     class Test(Shift):
         val: int
 
+        @shift_transformer('val', pre=True, skip_when_pre=True)
+        def transform_val(self, field: ShiftFieldInfo, info: ShiftInfo):
+            return field.val
+
         @shift_validator('val', pre=True, skip_when_pre=True)
         def validate_val(self, field: ShiftFieldInfo, info: ShiftInfo):
             for i_field in info.fields:
                 if i_field.name == 'val':
                     i_field.val = 42
             return True
+
+        @shift_setter('val')
+        def set_val(self, val):
+            setattr(self, 'val', val)
 
     test = Test(val="42")
     assert test.val == 42
@@ -148,7 +160,7 @@ def test_shift_repr():
 
         @shift_repr('val')
         def repr_val(self, val):
-            return 'val=' + repr(val + 1)
+            return repr(val + 1)
 
     test = Test(val=42)
     assert repr(test) == "Test(val=43)"
@@ -159,7 +171,7 @@ def test_shift_repr_advanced():
 
         @shift_repr('val')
         def repr_val(self, field: ShiftFieldInfo, info: ShiftInfo):
-            return 'val=' + repr(field.val + 1)
+            return repr(field.val + 1)
 
     test = Test(val=42)
     assert repr(test) == "Test(val=43)"
@@ -170,7 +182,7 @@ def test_shift_serializer():
 
         @shift_serializer('val')
         def serialize_val(self, val):
-            return { 'val': val + 1 }
+            return val + 1
 
     test = Test(val=42)
     assert test.serialize() == {"val": 43}
@@ -181,7 +193,7 @@ def test_shift_serializer_advanced():
 
         @shift_serializer('val')
         def serialize_val(self, field: ShiftFieldInfo, info: ShiftInfo):
-            return { 'val': field.val + 1 }
+            return field.val + 1
 
     test = Test(val=42)
     assert test.serialize() == {"val": 43}
