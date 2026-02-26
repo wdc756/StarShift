@@ -628,7 +628,7 @@ def shift_init_function_wrapper(info: ShiftInfo, func: Callable) -> None:
 ## Misc
 #######
 
-def can_index(val: Any) -> bool:
+def _can_index(val: Any) -> bool:
     """Returns True if val can be indexed, False otherwise"""
     try:
         _ = val[0]
@@ -732,7 +732,7 @@ def shift_all_of_single_type_transformer(instance: Any, field_info: ShiftFieldIn
         raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected value to be list-like, got `{field_info.val}`")
 
     # Handle case where typ is not indexable
-    indexable = can_index(field_info.val)
+    indexable = _can_index(field_info.val)
     if not indexable:
         field_info.val = list(field_info.val)
 
@@ -767,7 +767,7 @@ def shift_all_of_many_type_transformer(instance: Any, field_info: ShiftFieldInfo
         raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected {len(args)} values, got {len(field_info.val)}")
 
     # Handle case where typ is not indexable
-    indexable = can_index(field_info.val)
+    indexable = _can_index(field_info.val)
     if not indexable:
         field_info.val = list(field_info.val)
 
@@ -1293,7 +1293,7 @@ def shift_all_of_single_type_setter(instance: Any, field_info: ShiftFieldInfo, s
         raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected value to be list-like, got `{field_info.val}`")
 
     # Handle case where typ is not indexable
-    indexable = can_index(field_info.val)
+    indexable = _can_index(field_info.val)
     if not indexable:
         field_info.val = list(field_info.val)
 
@@ -1328,7 +1328,7 @@ def shift_all_of_many_type_setter(instance: Any, field_info: ShiftFieldInfo, shi
         raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected {len(args)} values, got {len(field_info.val)}")
 
     # Handle case where typ is not indexable
-    indexable = can_index(field_info.val)
+    indexable = _can_index(field_info.val)
     if not indexable:
         field_info.val = list(field_info.val)
 
