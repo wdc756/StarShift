@@ -1,6 +1,4 @@
-# Imports
-########################################################################################################################
-
+# region Imports
 
 
 # To allow backwards compatibility with type hints
@@ -20,9 +18,8 @@ import re
 import inspect, sys
 
 
-
-# Global Registers & Defaults
-########################################################################################################################
+# endregion
+# region Global Registers & Defaults
 
 
 
@@ -44,13 +41,13 @@ _shift_init_functions: dict[Callable, bool] = {}
 
 
 
-# Shift Types
-########################################################################################################################
+# endregion
+# region Shift Types
 
 
 
 ## Errors
-############################################################
+#########
 
 class ShiftError(Exception):
     """Base class for all starshift errors"""
@@ -75,7 +72,7 @@ class UnknownShiftTypeError(ShiftError):
 
 
 ## Metadata
-############################################################
+###########
 
 class Missing:
     """Sentinel class to check for missing values"""
@@ -405,7 +402,7 @@ class ShiftField:
 
 
 ## Type Aliases
-############################################################
+###############
 
 ShiftSimpleTransformer: TypeAlias = Callable[[Any, Any], Any]
 ShiftAdvancedTransformer: TypeAlias = Callable[[Any, ShiftFieldInfo, ShiftInfo], Any]
@@ -432,7 +429,7 @@ AnyShiftDecorator: TypeAlias = ShiftTransformer | ShiftValidator | ShiftSetter |
 
 
 ## Shift Type Class & Functions
-############################################################
+###############################
 
 def _shift_base_transformer_wrapper(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any:
     """Wrapper for shift_base_type_transformer"""
@@ -507,8 +504,8 @@ def get_shift_type(typ: Any) -> ShiftType | None:
 
 
 
-# Decorators
-########################################################################################################################
+# endregion
+# region Decorators
 
 
 
@@ -571,8 +568,8 @@ def shift_serializer(*fields: str) -> Callable[[ShiftSerializer], ShiftSerialize
 
 
 
-# Wrappers
-########################################################################################################################
+# endregion
+# region Wrappers
 
 
 
@@ -625,12 +622,11 @@ def shift_init_function_wrapper(info: ShiftInfo, func: Callable) -> None:
     raise ShiftFieldError(info.model_name, f"Invalid signature for {func.__name__}")
 
 
+# endregion
+# region Builtin Type Functions
 
-## Builtin Type Functions
-############################################################
-
-### Transform
-#############################
+## Transform
+############
 
 def shift_missing_type_transformer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any:
     """
@@ -897,8 +893,8 @@ def shift_type_transformer(instance: Any, field_info: ShiftFieldInfo, shift_info
         raise UnknownShiftTypeError(f"Field `{field_info.name}` has unknown type `{field_info.typ}`")
     return shift_function_wrapper(field_info, shift_info, shift_typ.transformer)
 
-### Validate
-#############################
+## Validate
+###########
 
 def shift_missing_type_validator(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> bool:
     """
@@ -1185,8 +1181,8 @@ def shift_type_validator(instance: Any, field_info: ShiftFieldInfo, shift_info: 
         raise UnknownShiftTypeError(f"Field `{field_info.name}` has unknown type `{field_info.typ}`")
     return shift_function_wrapper(field_info, shift_info, shift_typ.validator)
 
-### Set
-#############################
+## Set
+######
 
 def shift_missing_type_setter(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any:
     """
@@ -1279,6 +1275,12 @@ def shift_all_of_single_type_setter(instance: Any, field_info: ShiftFieldInfo, s
     if not isinstance(field_info.val, Iterable):
         raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected value to be list-like, got `{field_info.val}`")
 
+    # Handle case where typ is set or frozen set (convert to list and then back)
+    is_set = isinstance(field_info.val, set)
+    is_frozenset = isinstance(field_info.val, frozenset)
+    if is_set or is_frozenset:
+        field_info.val = list(field_info.val)
+
     # All values must be of type args[0]
     for i, val in enumerate(field_info.val):
         tmp_field_info = ShiftFieldInfo(f"{field_info.name}.{type(args[0].__name__)}[i]", args[0], val)
@@ -1286,6 +1288,13 @@ def shift_all_of_single_type_setter(instance: Any, field_info: ShiftFieldInfo, s
             field_info.val[i] = shift_type_setter(instance, tmp_field_info, shift_info)
         except ShiftTypeMismatchError:
             raise ShiftTypeMismatchError(f"Field `{field_info.name}` expected all values to be of type `{type(args[0].__name__)}`, but got `{type(val).__name__}` at index {i}")
+
+    # Convert back to set or frozen set if needed
+    if is_set:
+        field_info.val = set(field_info.val)
+    elif is_frozenset:
+        field_info.val = frozenset(field_info.val)
+
     return field_info.val
 
 # noinspection PyTypeChecker
@@ -1435,8 +1444,8 @@ def shift_type_setter(instance: Any, field_info: ShiftFieldInfo, shift_info: Shi
         raise UnknownShiftTypeError(f"Field `{field_info.name}` has unknown type `{field_info.typ}`")
     return shift_function_wrapper(field_info, shift_info, shift_typ.setter)
 
-### ShiftRepr
-#############################
+## ShiftRepr
+############
 
 def shift_missing_type_repr(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> str | None:
     """
@@ -1682,8 +1691,8 @@ def shift_type_repr(instance: Any, field_info: ShiftFieldInfo, shift_info: Shift
         raise UnknownShiftTypeError(f"Field `{field_info.name}` has unknown type `{field_info.typ}`")
     return shift_function_wrapper(field_info, shift_info, shift_typ.repr)
 
-### Serialize
-#############################
+## Serialize
+############
 
 def shift_missing_type_serializer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any | None:
     """
@@ -1931,13 +1940,13 @@ def shift_type_serializer(instance: Any, field_info: ShiftFieldInfo, shift_info:
 
 
 
-# Shift Processing Functions
-########################################################################################################################
+# endregion
+# region Shift Processing Functions
 
 
 
 ## Transform
-############################################################
+############
 
 def _transform_field(field: ShiftFieldInfo, info: ShiftInfo) -> None:
     # Call pre-transformer if present
@@ -1968,7 +1977,7 @@ def _transform(info: ShiftInfo) -> None:
 
 
 ## Validate
-############################################################
+###########
 
 def _validate_field(field: ShiftFieldInfo, info: ShiftInfo) -> bool:
     # Call pre-validator if present
@@ -2002,7 +2011,7 @@ def _validate(info: ShiftInfo) -> bool:
 
 
 ## Set
-############################################################
+######
 
 def _set_field(field: ShiftFieldInfo, info: ShiftInfo) -> None:
     # If field setter, call (assume set in function)
@@ -2022,8 +2031,8 @@ def _set(info: ShiftInfo) -> None:
 
 
 
-## ShiftRepr
-############################################################
+## Repr
+#######
 
 def _repr_field(field: ShiftFieldInfo, info: ShiftInfo) -> str:
     # If field repr, call
@@ -2060,7 +2069,7 @@ def _repr(info: ShiftInfo) -> str:
 
 
 ## Serialize
-############################################################
+############
 
 def _serialize_field(field: ShiftFieldInfo, info: ShiftInfo) -> dict | None:
     # If field serializer, call
@@ -2096,13 +2105,13 @@ def _serialize(info: ShiftInfo) -> dict:
 
 
 
-# Shift Classes
-########################################################################################################################
+# endregion
+# region Shift Classes
 
 
 
 ## Class Init Functions
-############################################################
+#######################
 
 def get_shift_config(cls, fields: dict) -> ShiftConfig | None:
     # Get shift_config from cls if it exists
@@ -2403,7 +2412,7 @@ def get_shift_info(cls: Any, instance: Any, data: dict) -> ShiftInfo:
 
 
 ## Classes
-############################################################
+##########
 
 class Shift:
     """Base class for all shift models"""
@@ -2502,13 +2511,13 @@ class Shift:
 
 
 
-# Utilities
-########################################################################################################################
+# endregion
+# region Utilities
 
 
 
 ## Shift Types
-############################################################
+##############
 
 def get_shift_type_registry() -> dict[Type, ShiftType]:
     """Returns a copy of the shift type registry"""
@@ -2531,7 +2540,7 @@ def clear_shift_types() -> None:
 
 
 ## Forward Refs
-############################################################
+###############
 
 def get_forward_ref_registry() -> dict[str, Type]:
     """Returns a copy of the forward ref registry"""
@@ -2558,7 +2567,7 @@ def clear_forward_refs() -> None:
 
 
 ## Shift Infos
-############################################################
+##############
 
 def get_shift_info_registry() -> dict[Any, ShiftInfo]:
     """Returns a copy of the model info registry"""
@@ -2571,7 +2580,7 @@ def clear_shift_info_registry() -> None:
 
 
 ## Shift Functions
-############################################################
+##################
 
 def get_shift_function_registry() -> dict[Callable[[AnyShiftDecorator], bool], bool]:
     """Returns a copy of the shift function registry"""
@@ -2584,7 +2593,7 @@ def clear_shift_function_registry() -> None:
 
 
 ## Shift init Functions
-###########################################################
+#######################
 
 def get_shift_init_function_registry() -> dict[Callable[[Any | Any, ShiftInfo], bool], bool]:
     """Returns a copy of the shift init function registry"""
@@ -2597,7 +2606,7 @@ def clear_shift_init_function_registry() -> None:
 
 
 ## Misc
-############################################################
+#######
 
 missing_shift_type = ShiftType(shift_missing_type_transformer, shift_missing_type_validator, shift_missing_type_setter, shift_missing_type_repr, shift_missing_type_serializer)
 base_shift_type = ShiftType(shift_base_type_transformer, shift_base_type_validator, shift_base_type_setter, shift_base_type_repr, shift_base_type_serializer)
@@ -2717,3 +2726,7 @@ def resolve_forward_ref(typ: str | ForwardRef, info: ShiftInfo) -> Type:
 
 # Setup starshift
 reset_starshift_globals()
+
+
+
+# endregion
