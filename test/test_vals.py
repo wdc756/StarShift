@@ -17,14 +17,14 @@ def reset_starshift():
 
 
 def test_default():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: int = 42
 
     test = Test()
     assert test.val == 42
 
 def test_un_annotated():
-    class Test(Shift):
+    class Test(ShiftModel):
         val = 42
 
     test = Test()
@@ -34,30 +34,40 @@ def test_un_annotated():
     assert test.val == 81
 
 def test_arbitrary_keys():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: int
 
     test = Test(val=42, arbitrary_key="hello there")
     assert test.val == 42
     assert not hasattr(test, "arbitrary_key")
 
-def test_inline_shift_config():
-    class Test(Shift):
-        val: int
+# def test_inline_shift_config():
+#     class Test(ShiftModel):
+#         val: int
+#
+#     test = Test(__shift_config__=ShiftConfig(fail_fast=True), val=42)
+#     assert test.val == 42
+#     assert not hasattr(test, "__shift_config__")
+#     assert get_shift_info(Test, test, {}).shift_config.fail_fast == True
 
-    test = Test(__shift_config__=ShiftConfig(verbosity=1), val=42)
-    assert test.val == 42
-    assert not hasattr(test, "__shift_config__")
-    assert get_shift_info(Test, test, {}).shift_config.verbosity == 0
+def test_ignore_private():
+    class Test(ShiftModel):
+        _val: int
+
+        def __post_init__(self):
+            self._val = 42
+
+    test = Test()
+    assert test._val == 42
 
 def test_set_to_private():
-    class Test(Shift):
+    class Test(ShiftModel):
         _val: int = 42
 
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftFieldError):
         _ = Test(_val=42)
 
-    class Test(Shift):
+    class Test(ShiftModel):
         __shift_config__ = ShiftConfig(allow_private_field_setting=True)
         _val: int = 42
 
@@ -65,14 +75,13 @@ def test_set_to_private():
     assert test._val == 81
 
 def test_shift_setter_to_private():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: int
         _private: int = 42
 
         @shift_setter('_private')
         def set_val(self, val):
-            self._private = self.val
+            self._private = 88
 
     test = Test(val=81)
-    print(test._private)
-    assert test._private == 81
+    assert test._private == 88

@@ -17,7 +17,7 @@ def reset_starshift():
 
 
 
-class Task(Shift):
+class Task(ShiftModel):
     title: str
     description: str = ''
     status: Literal['Not Started', 'In Progress', 'Stuck', 'Done']
@@ -30,28 +30,28 @@ class Task(Shift):
 
 
     @shift_validator('title', 'assignees', 'admins')
-    def _validate_non_empty_lists_and_strs(self, field: ShiftField, info: ShiftInfo) -> bool:
+    def _validate_non_empty_lists_and_strs(self, field: ShiftFieldInfo, info: ShiftInfo) -> bool:
         if len(field.val) == 0:
-            raise ShiftError('Task', f"{field.name} cannot be empty")
+            raise ShiftFieldError(field.name, 'cannot be empty')
         return True
 
     @shift_validator('due_date')
     def _validate_due_date(self, val: datetime) -> bool:
         if val <= datetime.now():
-            raise ShiftError('Task', f"due date must be in the future")
+            raise ShiftFieldError('due_date', 'due date must be in the future')
         return True
 
     def _validate_all_admins_are_assignees(self):
         for admin in self.admins:
             if admin not in self.assignees:
-                raise ShiftError('Task', f"All admins must be assignees")
+                raise ShiftError('Task: All admins must be assignees')
 
 
 
     def __post_init__(self, info: ShiftInfo):
         self._validate_all_admins_are_assignees()
 
-class Group(Shift):
+class Group(ShiftModel):
     title: str
     description: str
     tasks: list[Task]
@@ -61,12 +61,12 @@ class Group(Shift):
 
 
     @shift_validator('title', 'description', 'members', 'admins')
-    def _validate_non_empty_lists_and_strs(self, field: ShiftField, info: ShiftInfo) -> bool:
+    def _validate_non_empty_lists_and_strs(self, field: ShiftFieldInfo, info: ShiftInfo) -> bool:
         if len(field.val) == 0:
-            raise ShiftError('Group', f"{field.name} cannot be empty")
+            raise ShiftFieldError(field.name, f"cannot be empty")
         return True
 
-class Employee(Shift):
+class Employee(ShiftModel):
     first_name: str
     last_name: str
     title: Literal['Junior Developer', 'Senior Developer', 'Manager', 'CEO']
@@ -74,12 +74,12 @@ class Employee(Shift):
 
 
     @shift_validator('first_name', 'last_name')
-    def _validate_non_empty_name(self, field: ShiftField, info: ShiftInfo) -> bool:
+    def _validate_non_empty_name(self, field: ShiftFieldInfo, info: ShiftInfo) -> bool:
         if len(field.val) == 0:
-            raise ShiftError('Task', f"{field.name} cannot be empty")
+            raise ShiftFieldError(field.name, f"cannot be empty")
         return True
 
-class Company(Shift):
+class Company(ShiftModel):
     name: str
     title: str
     employees: list[Employee]
@@ -841,7 +841,7 @@ invalid_company_2 = {
 
 @pytest.mark.application
 def test_valid_company_datasets():
-    def date_type_validator(instance: Any, field: ShiftField, info: ShiftInfo) -> bool:
+    def date_type_validator(instance: Any, field: ShiftFieldInfo, info: ShiftInfo) -> bool:
         return isinstance(field.val, datetime)
     date_shift_type = ShiftType(
         validator=date_type_validator,
@@ -854,14 +854,14 @@ def test_valid_company_datasets():
 
 @pytest.mark.application
 def test_invalid_company_datasets():
-    def date_type_validator(instance: Any, field: ShiftField, info: ShiftInfo) -> bool:
+    def date_type_validator(instance: Any, field: ShiftFieldInfo, info: ShiftInfo) -> bool:
         return isinstance(field.val, datetime)
     date_shift_type = ShiftType(
         validator=date_type_validator,
     )
     register_shift_type(datetime, date_shift_type)
 
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftModelError):
         _ = Company(**invalid_company_1)
-    with pytest.raises(ShiftError):
+    with pytest.raises(ShiftModelError):
         _ = Company(**invalid_company_2)
