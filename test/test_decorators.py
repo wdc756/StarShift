@@ -17,7 +17,7 @@ def reset_starshift():
 
 
 def test_shift_transformer():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: int
 
         @shift_transformer('val')
@@ -28,7 +28,7 @@ def test_shift_transformer():
     assert test.val == 43
 
 def test_shift_transformer_advanced():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: int
 
         @shift_transformer('val')
@@ -39,7 +39,7 @@ def test_shift_transformer_advanced():
     assert test.val == 43
 
 def test_shift_transformer_pre():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: int
 
         @shift_transformer('val', pre=True)
@@ -50,7 +50,7 @@ def test_shift_transformer_pre():
     assert test.val == 42
 
 def test_shift_transformer_pre_skip():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: int
 
         @shift_transformer('val', pre=True, skip_when_pre=True)
@@ -69,7 +69,7 @@ def test_shift_transformer_pre_skip():
     assert test.val == "42"
 
 def test_shift_validator():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: int
 
         @shift_validator('val')
@@ -83,7 +83,7 @@ def test_shift_validator():
         _ = Test(val=-42)
 
 def test_shift_validator_advanced():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: int
 
         @shift_validator('val')
@@ -97,7 +97,7 @@ def test_shift_validator_advanced():
         _ = Test(val=-42)
 
 def test_shift_validator_pre():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: int
 
         @shift_validator('val', pre=True)
@@ -111,7 +111,7 @@ def test_shift_validator_pre():
     assert test.val == 43
 
 def test_shift_validator_pre_skip():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: int
 
         @shift_transformer('val', pre=True, skip_when_pre=True)
@@ -133,7 +133,7 @@ def test_shift_validator_pre_skip():
     assert test.val == 42
 
 def test_shift_setter():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: int
 
         @shift_setter('val')
@@ -144,7 +144,7 @@ def test_shift_setter():
     assert test.val == 43
 
 def test_shift_setter_advanced():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: int
 
         @shift_setter('val')
@@ -155,7 +155,7 @@ def test_shift_setter_advanced():
     assert test.val == 43
 
 def test_shift_repr():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: int
 
         @shift_repr('val')
@@ -166,7 +166,7 @@ def test_shift_repr():
     assert repr(test) == "Test(val=43)"
 
 def test_shift_repr_advanced():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: int
 
         @shift_repr('val')
@@ -177,7 +177,7 @@ def test_shift_repr_advanced():
     assert repr(test) == "Test(val=43)"
 
 def test_shift_serializer():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: int
 
         @shift_serializer('val')
@@ -188,7 +188,7 @@ def test_shift_serializer():
     assert test.serialize() == {"val": 43}
 
 def test_shift_serializer_advanced():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: int
 
         @shift_serializer('val')

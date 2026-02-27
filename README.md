@@ -1,4 +1,4 @@
-# Star Shift
+# Star ShiftModel
 
 
 
@@ -33,36 +33,41 @@ Starshift has the ability to handle simple validation cases like just checking t
 have the right type:
 
 ```python
-from starshift import Shift
+from starshift import ShiftModel
 
-class Person(Shift):
+
+class Person(ShiftModel):
     name: str
     age: int
+
 
 # This works:
 _ = Person(name='John', age=42)
 
 # But these all fail:
-_ = Person(age=42) # Missing name
-_ = Person(name='John') # Missing age
-_ = Person(name=81, age=42) # name str set to int
-_ = Person(name='John', age='Doe') # age int set to str
+_ = Person(age=42)  # Missing name
+_ = Person(name='John')  # Missing age
+_ = Person(name=81, age=42)  # name str set to int
+_ = Person(name='John', age='Doe')  # age int set to str
 ```
 
 all classes can be set with dicts:
 
 ```python
 from typing import Optional
-from starshift import Shift
+from starshift import ShiftModel
 
-class User(Shift):
+
+class User(ShiftModel):
     name: str
     age: int
 
-class Task(Shift):
+
+class Task(ShiftModel):
     name: str
     description: Optional[str]
     assignee: User
+
 
 # These create the same thing
 _ = Task(name='Fix code', assignee=User(name='John', age=42))
@@ -79,12 +84,14 @@ _ = Task(**dct)
 comprehensive value checks:
 
 ```python
-from starshift import Shift, ShiftField
+from starshift import ShiftModel, ShiftField
 
-class User(Shift):
+
+class User(ShiftModel):
     name: str = ShiftField(min_len=1)
     age: int = ShiftField(ge=0)
     email: str = ShiftField(pattern=r'^[\w.-]+@[\w.-]+\.\w+$')
+
 
 # This is valid:
 _ = User(name='John Doe', age=42, email='jd@mail.com')
@@ -99,7 +106,7 @@ _ = User(name='', age=-42, email='email')
 fully customizable engine:
 
 ```python
-from starshift import Shift, ShiftField, shift_validator, shift_transformer
+from starshift import ShiftModel, ShiftField, shift_validator, shift_transformer
 
 valid_hosts = [
     'localhost',
@@ -118,7 +125,7 @@ def get_api_keys_for_host(host, port):
     return ['key1', 'key2']
 
 
-class Server(Shift):
+class Server(ShiftModel):
     host: str = 'localhost'
     port: int = ShiftField(default=8080, ge=0, le=65535)
     _api_keys: list[str]
@@ -126,7 +133,7 @@ class Server(Shift):
     @shift_transformer('host')
     def transform_host(self, val):
         return val.strip()
-    
+
     @shift_validator('host')
     def validate_host(self, val):
         return val in valid_hosts
@@ -142,8 +149,8 @@ class Server(Shift):
 
 # This works
 server = Server(host='   192.168.1.253', port=22)
-_ = server.host # `192.168.1.253`
-_ = server.port # `22`
+_ = server.host  # `192.168.1.253`
+_ = server.port  # `22`
 _ = server.get_api_keys()  # Returns `['key1', 'key2']`
 
 # This fails
@@ -156,7 +163,7 @@ _ = Server(host='8.8.8.8', port=7000, _api_keys=['key'])
 custom type support:
 
 ```python
-from starshift import Shift, ShiftType
+from starshift import ShiftModel, ShiftType
 
 
 ```

@@ -42,7 +42,7 @@ _shift_init_functions: dict[Callable, bool] = {}
 
 
 # endregion
-# region Shift Types
+# region ShiftModel Types
 
 
 
@@ -128,8 +128,8 @@ class ShiftConfig:
     Attributes:
         fail_fast (bool): If True, processing will stop on the first error encountered. Default; False
         do_processing (bool): If True, on init all fields will be transformed, validated, and set. If False, you must manually set everything (use __post_init__); Default: True
-        try_coerce_types (bool): If True, Shift will attempt to coerce types where possible. If False, all types must match exactly; Default: False
-        allow_private_field_setting (bool): If False, Shift will not throw when a class is instantiated with a private field val; Default: False
+        try_coerce_types (bool): If True, ShiftModel will attempt to coerce types where possible. If False, all types must match exactly; Default: False
+        allow_private_field_setting (bool): If False, ShiftModel will not throw when a class is instantiated with a private field val; Default: False
         include_default_fields_in_serialization (bool): If True, default value fields will be serialized (used in repr too); Default: False
         include_private_fields_in_serialization (bool): If True, private fields will be serialized (used in repr too); Default: False
     """
@@ -472,7 +472,7 @@ AnyShiftDecorator: TypeAlias = ShiftTransformer | ShiftValidator | ShiftSetter |
 
 
 
-## Shift Type Class & Functions
+## ShiftModel Type Class & Functions
 ###############################
 
 def _shift_base_transformer_wrapper(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any:
@@ -531,10 +531,10 @@ def get_shift_type(typ: Any) -> ShiftType | None:
     if isinstance(typ, ForwardRef):
         return _shift_types[ForwardRef]
 
-    # If type is a Shift subclass, return shift type
+    # If type is a ShiftModel subclass, return shift type
     try:
-        if issubclass(typ, Shift):
-            return _shift_types[Shift]
+        if issubclass(typ, ShiftModel):
+            return _shift_types[ShiftModel]
     except Exception:
         pass
 
@@ -906,18 +906,18 @@ def shift_forward_ref_type_transformer(instance: Any, field_info: ShiftFieldInfo
 
 def shift_shift_type_transformer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any:
     """
-    When the field.val is a Shift subclass instance or dict, returns value.
-    Raises ShiftTypeMismatchError if the field.val is not a Shift subclass, or class construction fails.
+    When the field.val is a ShiftModel subclass instance or dict, returns value.
+    Raises ShiftTypeMismatchError if the field.val is not a ShiftModel subclass, or class construction fails.
     """
 
     try:
-        if isinstance(field_info.val, Shift) or issubclass(field_info.val, Shift):
+        if isinstance(field_info.val, ShiftModel) or issubclass(field_info.val, ShiftModel):
             return field_info.val
     except Exception:
         pass
     if isinstance(field_info.val, dict):
         return field_info.val
-    raise ShiftTypeMismatchError(f"expected Shift subclass or dict, got `{type(field_info.val).__name__}`")
+    raise ShiftTypeMismatchError(f"expected ShiftModel subclass or dict, got `{type(field_info.val).__name__}`")
 
 def shift_shift_field_type_transformer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any:
     """
@@ -1202,18 +1202,18 @@ def shift_forward_ref_type_validator(instance: Any, field_info: ShiftFieldInfo, 
 
 def shift_shift_type_validator(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> bool:
     """
-    When the field.val is a Shift subclass instance return True, otherwise if the field.val is a dict, save construction for set
-    Raises ShiftTypeMismatchError if the field.val is not a Shift subclass, or class construction fails.
+    When the field.val is a ShiftModel subclass instance return True, otherwise if the field.val is a dict, save construction for set
+    Raises ShiftTypeMismatchError if the field.val is not a ShiftModel subclass, or class construction fails.
     """
 
     try:
-        if isinstance(field_info.val, Shift) or issubclass(field_info.val, Shift):
+        if isinstance(field_info.val, ShiftModel) or issubclass(field_info.val, ShiftModel):
             return True
     except Exception:
         pass
     if isinstance(field_info.val, dict):
         return True
-    raise ShiftTypeMismatchError(f"expected Shift subclass or dict, got `{type(field_info.val).__name__}`")
+    raise ShiftTypeMismatchError(f"expected ShiftModel subclass or dict, got `{type(field_info.val).__name__}`")
 
 def shift_shift_field_type_validator(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> bool:
     """
@@ -1474,18 +1474,18 @@ def shift_forward_ref_type_setter(instance: Any, field_info: ShiftFieldInfo, shi
 
 def shift_shift_type_setter(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any:
     """
-    When the field.val is a Shift subclass return, else if dict try building the instance
-    Raises ShiftTypeMismatchError if the field.val is not a Shift subclass, or class construction fails.
+    When the field.val is a ShiftModel subclass return, else if dict try building the instance
+    Raises ShiftTypeMismatchError if the field.val is not a ShiftModel subclass, or class construction fails.
     """
 
     try:
-        if isinstance(field_info.val, Shift) or issubclass(field_info.val, Shift):
+        if isinstance(field_info.val, ShiftModel) or issubclass(field_info.val, ShiftModel):
             return field_info.val
     except Exception:
         pass
     if isinstance(field_info.val, dict) and isinstance(field_info.typ, type):
         return field_info.typ(**field_info.val)
-    raise ShiftTypeMismatchError(f"expected Shift subclass or dict, got `{type(field_info.val).__name__}`")
+    raise ShiftTypeMismatchError(f"expected ShiftModel subclass or dict, got `{type(field_info.val).__name__}`")
 
 def shift_shift_field_type_setter(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any:
     """
@@ -1727,16 +1727,16 @@ def shift_forward_ref_type_repr(instance: Any, field_info: ShiftFieldInfo, shift
     
 def shift_shift_type_repr(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> str | None:
     """
-    When the field.val is a Shift subclass instance return the repred class
-    Raises ShiftTypeMismatchError if the field.val is not a Shift subclass, or class construction fails.
+    When the field.val is a ShiftModel subclass instance return the repred class
+    Raises ShiftTypeMismatchError if the field.val is not a ShiftModel subclass, or class construction fails.
     """
 
     try:
-        if isinstance(field_info.val, Shift) or issubclass(field_info.val, Shift):
+        if isinstance(field_info.val, ShiftModel) or issubclass(field_info.val, ShiftModel):
             return repr(field_info.val)
     except Exception as e:
         raise ShiftTypeMismatchError(f"could not inspect value: {e}")
-    raise ShiftTypeMismatchError(f"expected Shift subclass or dict, got `{type(field_info.val).__name__}`")
+    raise ShiftTypeMismatchError(f"expected ShiftModel subclass or dict, got `{type(field_info.val).__name__}`")
 
 def shift_shift_field_type_repr(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> str | None:
     """
@@ -1974,16 +1974,16 @@ def shift_forward_ref_type_serializer(instance: Any, field_info: ShiftFieldInfo,
     
 def shift_shift_type_serializer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any | None:
     """
-    When the field.val is a Shift subclass instance return the serialized class
-    Raises ShiftTypeMismatchError if the field.val is not a Shift subclass, or class construction fails.
+    When the field.val is a ShiftModel subclass instance return the serialized class
+    Raises ShiftTypeMismatchError if the field.val is not a ShiftModel subclass, or class construction fails.
     """
 
     try:
-        if isinstance(field_info.val, Shift) or issubclass(field_info.val, Shift):
+        if isinstance(field_info.val, ShiftModel) or issubclass(field_info.val, ShiftModel):
             return serialize(field_info.val)
     except Exception as e:
         raise ShiftTypeMismatchError(f"could not inspect value: {e}")
-    raise ShiftTypeMismatchError(f"expected Shift subclass or dict, got `{type(field_info.val).__name__}`")
+    raise ShiftTypeMismatchError(f"expected ShiftModel subclass or dict, got `{type(field_info.val).__name__}`")
 
 def shift_shift_field_type_serializer(instance: Any, field_info: ShiftFieldInfo, shift_info: ShiftInfo) -> Any | None:
     """
@@ -2017,7 +2017,7 @@ def shift_type_serializer(instance: Any, field_info: ShiftFieldInfo, shift_info:
 
 
 # endregion
-# region Shift Processing Functions
+# region ShiftModel Processing Functions
 
 
 
@@ -2212,7 +2212,7 @@ def _serialize(info: ShiftInfo) -> dict:
 
 
 # endregion
-# region Shift Classes
+# region ShiftModel Classes
 
 
 
@@ -2524,7 +2524,7 @@ def get_shift_info(cls: Any, instance: Any, data: dict) -> ShiftInfo:
 ## Classes
 ##########
 
-class Shift:
+class ShiftModel:
     """Base class for all shift models"""
 
     def __init__(self, **data):
@@ -2626,7 +2626,7 @@ class Shift:
 
 
 
-## Shift Types
+## ShiftModel Types
 ##############
 
 def get_shift_type_registry() -> dict[Type, ShiftType]:
@@ -2676,7 +2676,7 @@ def clear_forward_refs() -> None:
 
 
 
-## Shift Infos
+## ShiftModel Infos
 ##############
 
 def get_shift_info_registry() -> dict[Any, ShiftInfo]:
@@ -2689,7 +2689,7 @@ def clear_shift_info_registry() -> None:
 
 
 
-## Shift Functions
+## ShiftModel Functions
 ##################
 
 def get_shift_function_registry() -> dict[Callable[[AnyShiftDecorator], bool], bool]:
@@ -2702,7 +2702,7 @@ def clear_shift_function_registry() -> None:
 
 
 
-## Shift init Functions
+## ShiftModel init Functions
 #######################
 
 def get_shift_init_function_registry() -> dict[Callable[[Any | Any, ShiftInfo], bool], bool]:
@@ -2761,7 +2761,7 @@ _shift_builtin_types: dict[Type, ShiftType] = {
 
     Literal: one_of_val_shift_type,
 
-    Shift: shift_shift_type,
+    ShiftModel: shift_shift_type,
 
     ForwardRef: forward_ref_shift_type,
 

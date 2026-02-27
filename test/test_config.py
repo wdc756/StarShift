@@ -17,7 +17,7 @@ def reset_starshift():
 
 
 def test_default_config():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: int
 
     test = Test(val=42)
@@ -33,7 +33,7 @@ def test_default_config():
     DEFAULT_SHIFT_CONFIG.fail_fast = False
 
 def test_config_override():
-    class Test(Shift):
+    class Test(ShiftModel):
         __shift_config__ = ShiftConfig(fail_fast=True)
         val: int
 
@@ -44,7 +44,7 @@ def test_config_override():
 def test_do_processing():
     # Default is tested implicitly by most other tests
 
-    class Test(Shift):
+    class Test(ShiftModel):
         __shift_config__ = ShiftConfig(do_processing=False)
         val: int
 
@@ -54,7 +54,7 @@ def test_do_processing():
     test = Test(val="hello there")
     assert test.val == "hello there"
 
-    class Test(Shift):
+    class Test(ShiftModel):
         __do_processing__ = False
         val: int
 
@@ -69,20 +69,20 @@ def test_do_processing():
 # def try_coerce_types()
 
 def test_allow_private_field_setting():
-    class Test(Shift):
+    class Test(ShiftModel):
         _val: int = 42
 
     with pytest.raises(ShiftFieldError):
         _ = Test(_val=42)
 
-    class Test(Shift):
+    class Test(ShiftModel):
         __shift_config__ = ShiftConfig(allow_private_field_setting=True)
         _val: int
 
     test = Test(_val=42)
     assert test._val == 42
 
-    class Test(Shift):
+    class Test(ShiftModel):
         __allow_private_field_setting__ = True
         _val: int
 
@@ -90,14 +90,14 @@ def test_allow_private_field_setting():
     assert test._val == 42
 
 def test_include_default_fields_in_serialization():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: int = 42
 
     test = Test(val=42)
     assert repr(test) == "Test()"
     assert test.serialize() == {}
 
-    class Test(Shift):
+    class Test(ShiftModel):
         __shift_config__ = ShiftConfig(include_default_fields_in_serialization=True)
         val: int = 42
 
@@ -105,7 +105,7 @@ def test_include_default_fields_in_serialization():
     assert repr(test) == "Test(val=42)"
     assert test.serialize() == {"val": 42}
 
-    class Test(Shift):
+    class Test(ShiftModel):
         __include_default_fields_in_serialization__ = True
         val: int = 42
 
@@ -114,7 +114,7 @@ def test_include_default_fields_in_serialization():
     assert test.serialize() == {"val": 42}
 
 def test_include_private_fields_in_serialization():
-    class Test(Shift):
+    class Test(ShiftModel):
         __shift_config__ = ShiftConfig(allow_private_field_setting=True)
         _val: int
 
@@ -122,7 +122,7 @@ def test_include_private_fields_in_serialization():
     assert repr(test) == "Test()"
     assert test.serialize() == {}
 
-    class Test(Shift):
+    class Test(ShiftModel):
         __allow_private_field_setting__ = True
         _val: int
 
@@ -132,7 +132,7 @@ def test_include_private_fields_in_serialization():
 
     shift_config = ShiftConfig(include_private_fields_in_serialization=True, allow_private_field_setting=True)
 
-    class Test(Shift):
+    class Test(ShiftModel):
         __shift_config__ = shift_config
         _val: int
 
@@ -140,7 +140,7 @@ def test_include_private_fields_in_serialization():
     assert repr(test) == f"Test(__shift_config__={shift_config}, _val=42)"
     assert serialize(test) == {"__shift_config__": serialize(shift_config), "_val": 42}
 
-    class Test(Shift):
+    class Test(ShiftModel):
         __include_private_fields_in_serialization__ = True
         __allow_private_field_setting__ = True
         _val: int

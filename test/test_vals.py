@@ -17,14 +17,14 @@ def reset_starshift():
 
 
 def test_default():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: int = 42
 
     test = Test()
     assert test.val == 42
 
 def test_un_annotated():
-    class Test(Shift):
+    class Test(ShiftModel):
         val = 42
 
     test = Test()
@@ -34,7 +34,7 @@ def test_un_annotated():
     assert test.val == 81
 
 def test_arbitrary_keys():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: int
 
     test = Test(val=42, arbitrary_key="hello there")
@@ -42,7 +42,7 @@ def test_arbitrary_keys():
     assert not hasattr(test, "arbitrary_key")
 
 # def test_inline_shift_config():
-#     class Test(Shift):
+#     class Test(ShiftModel):
 #         val: int
 #
 #     test = Test(__shift_config__=ShiftConfig(fail_fast=True), val=42)
@@ -51,7 +51,7 @@ def test_arbitrary_keys():
 #     assert get_shift_info(Test, test, {}).shift_config.fail_fast == True
 
 def test_ignore_private():
-    class Test(Shift):
+    class Test(ShiftModel):
         _val: int
 
         def __post_init__(self):
@@ -61,13 +61,13 @@ def test_ignore_private():
     assert test._val == 42
 
 def test_set_to_private():
-    class Test(Shift):
+    class Test(ShiftModel):
         _val: int = 42
 
     with pytest.raises(ShiftFieldError):
         _ = Test(_val=42)
 
-    class Test(Shift):
+    class Test(ShiftModel):
         __shift_config__ = ShiftConfig(allow_private_field_setting=True)
         _val: int = 42
 
@@ -75,7 +75,7 @@ def test_set_to_private():
     assert test._val == 81
 
 def test_shift_setter_to_private():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: int
         _private: int = 42
 

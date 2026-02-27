@@ -137,7 +137,8 @@ every field of every class, which depending on the project could be simply too m
 use StarShift we can turn the above init logic into just this:
 
 ```python
-from starshift import Shift, ShiftField
+from starshift import ShiftModel, ShiftField
+
 
 class User:
     name: str = ShiftField(min_len=1, max_len=128)
@@ -167,12 +168,13 @@ In this example, we need to make sure that..
 1. attributes have the right type
 2. attributes have reasonable values
 
-We can solve the 1st problem just by making `User` and subclass of `Shift`:
+We can solve the 1st problem just by making `User` and subclass of `ShiftModel`:
 
 ```python
-from starshift import Shift
+from starshift import ShiftModel
 
-class User(Shift):
+
+class User(ShiftModel):
     name: str
     age: int
     email: str
@@ -181,9 +183,10 @@ class User(Shift):
 Then to solve the 2nd problem we can set the values equal to `ShiftFields`:
 
 ```python
-from starshift import Shift, ShiftField
+from starshift import ShiftModel, ShiftField
 
-class User(Shift):
+
+class User(ShiftModel):
     name: str = ShiftField(min_len=1, max_len=64)
     age: int = ShiftField(gt=0, lt=128)
     email: str = ShiftField(pattern=r'^[\w.-]+@[\w.-]+\.\w+$')
@@ -214,50 +217,55 @@ dct = {
 _ = User(**dct)
 ```
 
-### An Introduction to `Shift`
+### An Introduction to `ShiftModel`
 
-`Shift` is the main class in StarShift, and one you will always need to import, as
-without it there's not much point in using StarShift. Any time you define a `Shift` 
+`ShiftModel` is the main class in StarShift, and one you will always need to import, as
+without it there's not much point in using StarShift. Any time you define a `ShiftModel` 
 subclass you need to note a few things:
 
-#### 1. `Shift` overrides `__init__`, so you must construct instances with kwargs
+#### 1. `ShiftModel` overrides `__init__`, so you must construct instances with kwargs
 
 ```python
-from starshift import Shift
+from starshift import ShiftModel
 
-class Class(Shift):
+
+class Class(ShiftModel):
     val: int
+
 
 # This works
 _ = Class(val=42)
 # This does not
 _ = Class(42)
 
-# This will override Shift, and is not recommended
-class BadClass(Shift):
+
+# This will override ShiftModel, and is not recommended
+class BadClass(ShiftModel):
     def __init__(self, val: int):
         self.val = val
 
-# Will technically work, but will break other Shift functions
+
+# Will technically work, but will break other ShiftModel functions
 _ = BadClass(42)
 ```
 
 To some this may seem like an arbitrary constraint, but to me I see it as enforcing
 a standard of self-documenting code. No matter what you always know what you're setting
-each attribute to by nature of how Shift expects inputs. And if you still need
+each attribute to by nature of how ShiftModel expects inputs. And if you still need
 some sort of `__init__` functionality or on-instantiation checks, you can use
 `__pre_init__` and `__post_init__` - see the 
-[Shift API](https://github.com/wdc756/StarShift/blob/main/docs/api/shift.md) for more info.
+[ShiftModel API](https://github.com/wdc756/StarShift/blob/main/docs/api/shift.md) for more info.
 
-#### 2. `Shift` only works when you define type hints or defaults
+#### 2. `ShiftModel` only works when you define type hints or defaults
 
-If you create a class with an unannotated non-default attribute, Shift can't manage the
+If you create a class with an unannotated non-default attribute, ShiftModel can't manage the
 attribute:
 
 ```python
-from starshift import Shift
+from starshift import ShiftModel
 
-class Class(Shift):
+
+class Class(ShiftModel):
     val
 ```
 
@@ -267,13 +275,14 @@ use `Any`:
 
 ```python
 from typing import Any
-from starshift import Shift
+from starshift import ShiftModel
 
-class Class(Shift):
+
+class Class(ShiftModel):
     val: Any
 ```
 
-#### 3. `Shift` manages classes via 5 processes...
+#### 3. `ShiftModel` manages classes via 5 processes...
 
 1. Transformation: Pre-validation modifications
 2. Validation - Ensuring data is correct
@@ -281,14 +290,14 @@ class Class(Shift):
 4. Representation - String representations of instances
 5. Serialization - Dict representations of instances
 
-#### ...and 4. `Shift` processes can be overridden / extended on a global or per-attribute level
+#### ...and 4. `ShiftModel` processes can be overridden / extended on a global or per-attribute level
 
 ```python
 # Main classes
-from starshift import Shift, ShiftField, shift_transformer, shift_validator
+from starshift import ShiftModel, ShiftField, shift_transformer, shift_validator
 
 
-class User(Shift):
+class User(ShiftModel):
     # This checks if the str matches the regex pattern, and hides field in repr
     email: str = ShiftField(pattern=r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
                             repr_exclude=True)
@@ -301,11 +310,11 @@ class User(Shift):
     @shift_transformer('age')
     def transform_age(self, val):
         return val if val > 0 else 42
-    
+
     @shift_validator('email')
     def validate_email(self, val):
         return val in email_database
-    
+
     def __post_init__(self, info):
         # Send confirmation email
         send_email(self.email, f"Hello {self.name}, this is a...")
@@ -321,9 +330,10 @@ of basic checks and validation extensions that are generally applicable
 and can validate 90% of simple cases.
 
 ```python
-from starshift import Shift, ShiftField
+from starshift import ShiftModel, ShiftField
 
-class Class(Shift):
+
+class Class(ShiftModel):
     # This validates the int is between 0 and 42
     index: int = ShiftField(ge=0, le=42)
     # This validates the str is not empty but not over 32 chars
@@ -348,9 +358,9 @@ Another core pillar of StarShift is type extendability and custom logic. The ori
 reason StarShift was made was because Pydantic didn't supply the necessary 
 customization in the form of defining custom per-type logic or per-field validation.
 
-#### Shift Processes
+#### ShiftModel Processes
 
-All Shift classes contain 5 processes:
+All ShiftModel classes contain 5 processes:
 1. Transformation
 2. Validation
 3. Setting

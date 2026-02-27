@@ -14,7 +14,7 @@ InvalidType = object()
 
 def run():
     """"""
-    class Test(Shift):
+    class Test(ShiftModel):
         val: int = ShiftField(defer_set=True)
 
         def __pre_init__(self) -> None:

@@ -17,7 +17,7 @@ def reset_starshift():
 
 
 
-class Task(Shift):
+class Task(ShiftModel):
     title: str
     description: str = ''
     status: Literal['Not Started', 'In Progress', 'Stuck', 'Done']
@@ -51,7 +51,7 @@ class Task(Shift):
     def __post_init__(self, info: ShiftInfo):
         self._validate_all_admins_are_assignees()
 
-class Group(Shift):
+class Group(ShiftModel):
     title: str
     description: str
     tasks: list[Task]
@@ -66,7 +66,7 @@ class Group(Shift):
             raise ShiftFieldError(field.name, f"cannot be empty")
         return True
 
-class Employee(Shift):
+class Employee(ShiftModel):
     first_name: str
     last_name: str
     title: Literal['Junior Developer', 'Senior Developer', 'Manager', 'CEO']
@@ -79,7 +79,7 @@ class Employee(Shift):
             raise ShiftFieldError(field.name, f"cannot be empty")
         return True
 
-class Company(Shift):
+class Company(ShiftModel):
     name: str
     title: str
     employees: list[Employee]

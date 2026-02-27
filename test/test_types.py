@@ -17,7 +17,7 @@ def reset_starshift():
 
 
 def test_none():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: None
 
     test = Test(val=None)
@@ -31,7 +31,7 @@ def test_none():
         _ = Test(**{"val": InvalidType})
 
 def test_missing_to_none():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: None
 
     test = Test()
@@ -45,7 +45,7 @@ def test_missing_to_none():
         _ = Test(**{"val": InvalidType})
 
 def test_int():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: int
 
     test = Test(val=42)
@@ -59,7 +59,7 @@ def test_int():
         _ = Test(**{"val": InvalidType})
 
 def test_bool():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: bool
 
     test = Test(val=True)
@@ -73,7 +73,7 @@ def test_bool():
         _ = Test(**{"val": InvalidType})
 
 def test_float():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: float
 
     test = Test(val=1.21)
@@ -87,7 +87,7 @@ def test_float():
         _ = Test(**{"val": InvalidType})
 
 def test_str():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: str
 
     test = Test(val="hello there")
@@ -101,7 +101,7 @@ def test_str():
         _ = Test(**{"val": InvalidType})
 
 def test_bytes():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: bytes
 
     test = Test(val=b"hello there")
@@ -115,7 +115,7 @@ def test_bytes():
         _ = Test(**{"val": InvalidType})
 
 def test_bytearray():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: bytearray
 
     test = Test(val=bytearray(b"hello there"))
@@ -129,7 +129,7 @@ def test_bytearray():
         _ = Test(**{"val": InvalidType})
 
 def test_any():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: Any
 
     test = Test(val=42)
@@ -140,7 +140,7 @@ def test_any():
     # Any doesn't have a fail case
 
 def test_list():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: list[int]
 
     test = Test(val=[4, 5, 6, 1, 2, 3])
@@ -159,7 +159,7 @@ def test_list():
         _ = Test(**{"val": [4, 5, 6, 1, 2, InvalidType]})
 
 def test_set():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: set[int]
 
     test = Test(val={4, 5, 6, 1, 2, 3})
@@ -178,7 +178,7 @@ def test_set():
         _ = Test(**{"val": {4, 5, 6, 1, 2, InvalidType}})
 
 def test_frozenset():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: frozenset[int]
 
     test = Test(val=frozenset({4, 5, 6, 1, 2, 3}))
@@ -197,7 +197,7 @@ def test_frozenset():
         _ = Test(**{"val": frozenset({4, 5, 6, 1, 2, InvalidType})})
 
 def test_tuple():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: tuple[str, int]
 
     test = Test(val=("hello there", 42))
@@ -216,7 +216,7 @@ def test_tuple():
         _ = Test(**{"val": ("hello there", InvalidType)})
 
 # def test_callable():
-#     class Test(Shift):
+#     class Test(ShiftModel):
 #         val: Callable[[int], str]
 #     @staticmethod
 #     def func(x: int) -> str: return str(x)
@@ -246,7 +246,7 @@ def test_tuple():
 #         _ = Test(**{"val": func})
 
 def test_dict():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: dict[str, int]
 
     test = Test(val={"hello there": 42})
@@ -265,7 +265,7 @@ def test_dict():
         _ = Test(**{"val": {"hello there": InvalidType}})
 
 def test_union():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: Union[int, str]
 
     test = Test(val=42)
@@ -284,7 +284,7 @@ def test_union():
         _ = Test(**{"val": InvalidType})
 
 def test_optional():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: Optional[int]
 
     test = Test(val=42)
@@ -296,7 +296,7 @@ def test_optional():
     assert test.val is None
 
 def test_literal():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: Literal["hello there", "I have a bad feeling about this"]
 
     test = Test(val="hello there")
@@ -319,13 +319,13 @@ def test_literal():
     with pytest.raises(ShiftError):
         _ = Test(**{"val": "invalid"})
 
-class TForwardRef(Shift):
+class TForwardRef(ShiftModel):
     val: Optional[ForwardRef("TForwardRef")]
 
 def test_shift():
-    class A(Shift):
+    class A(ShiftModel):
         val: int
-    class B(Shift):
+    class B(ShiftModel):
         ref: A
 
     test = B(ref=A(val=42))
@@ -356,7 +356,7 @@ def test_forwardref():
         _ = TForwardRef(**{"val": InvalidType})
 
 def test_shift_field_basic():
-    class Test(Shift):
+    class Test(ShiftModel):
         val = ShiftField(type=int)
 
     test = Test(val=42)

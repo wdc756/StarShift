@@ -33,18 +33,18 @@ def test_get_shift_type():
 
 def test_get_shift_config():
     reset_starshift_globals() # Call this to fix weird pytest globals bug
-    class Test(Shift):
+    class Test(ShiftModel):
         val: int
 
     assert get_shift_config(Test, Test.__dict__.copy()) == DEFAULT_SHIFT_CONFIG
 
-    class Test(Shift):
+    class Test(ShiftModel):
         __shift_config__ = ShiftConfig(fail_fast=True)
 
     assert get_shift_config(Test, Test.__dict__.copy()).fail_fast == True
 
 def test_get_field_decorators():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: int
 
         @shift_transformer('val')
@@ -90,7 +90,7 @@ def test_get_field_decorators():
     }
     assert get_field_decorators(Test, Test.__dict__.copy()) == field_decorators
 
-    class Test(Shift):
+    class Test(ShiftModel):
         val: int
 
         @shift_transformer('val', pre=True)
@@ -122,7 +122,7 @@ def test_get_field_decorators():
     }
     assert get_field_decorators(Test, Test.__dict__.copy()) == field_decorators
 
-    class Test(Shift):
+    class Test(ShiftModel):
         val: int
 
         @shift_transformer('val', pre=True, skip_when_pre=False)
@@ -151,7 +151,7 @@ def test_get_field_decorators():
     assert get_field_decorators(Test, Test.__dict__.copy()) == field_decorators
 
 def test_get_fields():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: int
 
     fields = [
@@ -159,7 +159,7 @@ def test_get_fields():
     ]
     assert get_fields(Test, Test.__dict__.copy(), {}) == fields
 
-    class Test(Shift):
+    class Test(ShiftModel):
         val: int = 42
 
     fields = [
@@ -167,7 +167,7 @@ def test_get_fields():
     ]
     assert get_fields(Test, Test.__dict__.copy(), {"val": 81}) == fields
 
-    class Test(Shift):
+    class Test(ShiftModel):
         val: int
 
         def do_something(self):
@@ -179,7 +179,7 @@ def test_get_fields():
     assert get_fields(Test, Test.__dict__.copy(), {}) == fields
 
 def test_get_updated_fields():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: int
 
     test_1 = Test(val=42)
@@ -190,7 +190,7 @@ def test_get_updated_fields():
     assert get_updated_fields(test_2, get_fields(Test, Test.__dict__.copy(), {}), {"val": 81}) == fields
 
 def test_get_val_fields():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: int
 
     test = Test(val=42)
@@ -200,7 +200,7 @@ def test_get_val_fields():
     assert get_val_fields(test, get_fields(Test, Test.__dict__.copy(), {})) == fields
 
 def test_get_shift_info():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: int
 
     test = Test(val=42)
@@ -230,7 +230,7 @@ def test_get_shift_info():
     assert get_shift_info(Test, test, {"val": 42}) == info
 
 def test_serialize():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: int
 
     test = Test(val=42)
@@ -353,7 +353,7 @@ def test_clear_forward_refs():
     assert get_forward_ref_registry() == {}
 
 def test_get_model_info_registry():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: int
 
     assert get_shift_info_registry() == {}
@@ -362,7 +362,7 @@ def test_get_model_info_registry():
     assert get_shift_info_registry() == {Test: info}
 
 def test_clear_model_info_registry():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: int
 
     test = Test(val=42)
@@ -370,7 +370,7 @@ def test_clear_model_info_registry():
     assert get_shift_info_registry() == {}
 
 def test_get_shift_function_registry():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: int
 
         @shift_transformer('val')
@@ -389,7 +389,7 @@ def test_get_shift_function_registry():
     assert registry[Test.validate_val] == True
 
 def test_clear_shift_function_registry():
-    class Test(Shift):
+    class Test(ShiftModel):
         val: int
 
         @shift_transformer('val')

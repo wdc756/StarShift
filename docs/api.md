@@ -11,16 +11,18 @@ an in depth guide when needed.
 
 
 
-## `Shift`
+## `ShiftModel`
 
 The main class that pulls StarShift together. To use just make any class
-inherit `Shift` to automatically validate and provide repr and serialization.
+inherit `ShiftModel` to automatically validate and provide repr and serialization.
 
 ```python
-from starshift import Shift
+from starshift import ShiftModel
 
-class Class(Shift):
+
+class Class(ShiftModel):
     val: int
+
 
 # Works
 _ = Class(val=42)
@@ -29,20 +31,22 @@ _ = Class(val=42)
 _ = Class(val='Hello There!')
 ```
 
-Full `Shift` API: [here](https://github.com/wdc756/StarShift/blob/main/docs/api/Shift.md)
+Full `ShiftModel` API: [here](https://github.com/wdc756/StarShift/blob/main/docs/api/Shift.md)
 
 
 
 ## `ShiftField`
 
 The main class used for basic value checks. To use make a class that inherits 
-`Shift` and set a field equal to an instance of `ShiftField`.
+`ShiftModel` and set a field equal to an instance of `ShiftField`.
 
 ```python
-from starshift import Shift, ShiftField
+from starshift import ShiftModel, ShiftField
 
-class Class(Shift):
+
+class Class(ShiftModel):
     val: int = ShiftField(ge=0)
+
 
 # Works
 _ = Class(val=42)
@@ -71,9 +75,10 @@ advanced pre/post init functions.
 ### Usage
 
 ```python
-from starshift import Shift, ShiftFieldInfo, ShiftInfo, shift_validator
+from starshift import ShiftModel, ShiftFieldInfo, ShiftInfo, shift_validator
 
-class Class(Shift):
+
+class Class(ShiftModel):
     val1: int
     val2: int = 88
 
@@ -98,17 +103,22 @@ A class used to hold processing logic defining how to manage a type. Used
 by internal functions.
 
 ```python
-from starshift import Shift, ShiftType, register_shift_type
+from starshift import ShiftModel, ShiftType, register_shift_type
+
 
 def validate_int(instance, val) -> bool:
     return val % 2 == 0
+
+
 int_shift_type = ShiftType(
     validator=validate_int
 )
 register_shift_type(int, int_shift_type)
 
-class Class(Shift):
+
+class Class(ShiftModel):
     val: int
+
 
 # This works
 _ = Class(val=42)
@@ -121,7 +131,7 @@ Full `ShiftType` API [here](https://github.com/wdc756/StarShift/blob/main/docs/a
 
 
 
-## Shift Functions
+## ShiftModel Functions
 
 These are functions used during shift processes. All of these functions accept
 `(instance: Any, field: ShiftFieldInfo, info: ShiftInfo)` arguments.
@@ -179,7 +189,7 @@ A function that handles validation for all val pairs match arg pairs (`dict`) ty
 A function that handles validation for `Callable`s.
 
 #### `shift_shift_type_validator`
-A function that handles validation for `Shift` types.
+A function that handles validation for `ShiftModel` types.
 
 #### `shift_forward_ref_type_validator`
 A function that handles validation for `ForwardRef`s.
@@ -225,7 +235,7 @@ A function that handles serialization for all val pairs (`dict`) types
 (`{field: {vals}}`).
 
 #### `shift_shift_type_serializer`
-A function that handles serialization for `Shift`s.
+A function that handles serialization for `ShiftModel`s.
 
 #### `shift_forward_ref_type_serializer`
 A function that handles serialization for `ForwardRef`s.
@@ -240,7 +250,7 @@ type (`list`-like). Then you can create a `ShiftType` instance using the `all_of
 shift functions:
 
 ```python
-from starshift import Shift, ShiftFieldInfo, ShiftInfo, ShiftType
+from starshift import ShiftModel, ShiftFieldInfo, ShiftInfo, ShiftType
 from starshift import shift_all_of_single_type_validator, shift_all_of_serializer
 from starshift import register_shift_type
 from typing import TypeVar, Generic
@@ -272,7 +282,7 @@ simple_list_shift_type = ShiftType(
 register_shift_type(SimpleList, simple_list_shift_type)
 
 
-class Class(Shift):
+class Class(ShiftModel):
     val: SimpleList[int]
 
 
@@ -411,7 +421,7 @@ A function that returns a copy of the current `ShiftInfo` registry.
 #### `clear_shift_info_registry`
 A function that removes all `ShiftInfo`-type pairs from the registry.
 
-### Shift Function Registers
+### ShiftModel Function Registers
 
 #### `get_shift_function_registry`
 A function that returns a copy of the current shift function registry.
@@ -419,7 +429,7 @@ A function that returns a copy of the current shift function registry.
 #### `clear_shift_function_registry`
 A function that removes all shift functions from the registry.
 
-### Shift Init Function Registers
+### ShiftModel Init Function Registers
 
 #### `get_shift_init_function_registry`
 A function that returns a copy of the current shift init function registry.

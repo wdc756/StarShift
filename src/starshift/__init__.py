@@ -1,4 +1,4 @@
-# Shift Types
+# ShiftModel Types
 ## Errors
 from .star_shift import ShiftError, ShiftFieldError, ShiftTypeMismatchError, UnknownShiftTypeError
 ## Metadata
@@ -10,7 +10,7 @@ from .star_shift import ShiftSimpleSetter, ShiftAdvancedSetter, ShiftSetter
 from .star_shift import ShiftSimpleRepr, ShiftAdvancedRepr, ShiftRepr
 from .star_shift import ShiftSimpleSerializer, ShiftAdvancedSerializer, ShiftSerializer
 from .star_shift import AnyShiftDecorator
-## Shift Type Class & Functions
+## ShiftModel Type Class & Functions
 from .star_shift import ShiftType, get_shift_type
 
 # Decorators
@@ -41,27 +41,27 @@ from .star_shift import all_of_pair_shift_type, shift_all_of_pair_type_transform
 from .star_shift import shift_callable_shift_type, shift_callable_type_transformer, shift_callable_type_validator, shift_callable_type_setter, shift_callable_type_repr, shift_callable_type_serializer
 ## ForwardRef
 from .star_shift import forward_ref_shift_type, shift_forward_ref_type_transformer, shift_forward_ref_type_validator, shift_forward_ref_type_setter, shift_forward_ref_type_repr, shift_forward_ref_type_serializer
-## Shift
+## ShiftModel
 from .star_shift import shift_shift_type, shift_shift_type_transformer, shift_shift_type_validator, shift_shift_type_setter, shift_shift_type_repr, shift_shift_type_serializer
 ## ShiftField
 from .star_shift import shift_field_shift_type, shift_shift_field_type_transformer, shift_shift_field_type_validator, shift_shift_field_type_setter, shift_shift_field_type_repr, shift_shift_field_type_serializer
 
-# Shift Classes
+# ShiftModel Classes
 ## Init functions
 from .star_shift import get_shift_config, get_field_decorators, get_fields, get_updated_fields, get_val_fields, get_shift_info
 ## Classes
-from .star_shift import Shift
+from .star_shift import ShiftModel
 
 # Utilities
-## Shift Types
+## ShiftModel Types
 from .star_shift import get_shift_type_registry, register_shift_type, deregister_shift_type, clear_shift_types
 ## Forward Refs
 from .star_shift import get_forward_ref_registry, register_forward_ref, deregister_forward_ref, clear_forward_refs
-## Shift Infos
+## ShiftModel Infos
 from .star_shift import get_shift_info_registry, clear_shift_info_registry
-## Shift Functions
+## ShiftModel Functions
 from .star_shift import get_shift_function_registry, clear_shift_function_registry
-## Shift Init Functions
+## ShiftModel Init Functions
 from .star_shift import get_shift_init_function_registry, clear_shift_init_function_registry
 ## Misc
 from .star_shift import serialize, reset_starshift_globals, resolve_forward_ref
