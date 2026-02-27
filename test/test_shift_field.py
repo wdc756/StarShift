@@ -278,6 +278,10 @@ def test_shift_field_defer_transform():
     class Test(ShiftModel):
         val: int | None = ShiftField(defer_transform=True, default=88)
 
+        @shift_setter('val')
+        def set_val(self, val):
+            self.val = None
+
     test = Test()
     assert test.val is None
 

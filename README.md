@@ -1,4 +1,4 @@
-# Star ShiftModel
+# Star Shift
 
 
 
@@ -11,13 +11,13 @@ Created by William Dean Coker.
 
 ## Installation
 
-This project is hosted on the PyPi as `starshift`, so simply call
+This project is hosted on the PyPi as `starshift`, so call
 
 ```bash
 pip install starshift
 ```
 
-to get the latest version. Alternatively the latest version will always be hosted in the
+to get the latest version. Alternatively, the latest beta releases can be found in the
 [GitHub](https://github.com/wdc756/StarShift) repository 
 [here](https://github.com/wdc756/StarShift/releases).
 
@@ -29,7 +29,7 @@ For custom builds refer to this
 
 ## Quickstart Guide
 
-Starshift has the ability to handle simple validation cases like just checking that all vars
+Starshift can handle simple validation cases like just checking that all vars
 have the right type:
 
 ```python
@@ -51,7 +51,7 @@ _ = Person(name=81, age=42)  # name str set to int
 _ = Person(name='John', age='Doe')  # age int set to str
 ```
 
-all classes can be set with dicts:
+the ability to instantiate with dicts:
 
 ```python
 from typing import Optional
@@ -81,7 +81,7 @@ dct = {
 _ = Task(**dct)
 ```
 
-comprehensive value checks:
+or preform comprehensive value checks to cut back on boilerplate and errors:
 
 ```python
 from starshift import ShiftModel, ShiftField
@@ -103,7 +103,7 @@ _ = User(name='', age=-42, email='email')
 # - email not valid format
 ```
 
-fully customizable engine:
+and it supports a fully customizable engine:
 
 ```python
 from starshift import ShiftModel, ShiftField, shift_validator, shift_transformer
@@ -140,7 +140,7 @@ class Server(ShiftModel):
 
     def __post_init__(self):
         if not can_connect(self.host, self.port):
-            raise ValueError(f'Could not connect to {self.host}:{self.port}')
+            raise ConnectionError(f'Could not connect to {self.host}:{self.port}')
         self._api_keys = get_api_keys_for_host(self.host, self.port)
 
     def get_api_keys(self):
@@ -174,7 +174,7 @@ and all classes have default `repr`, `serializer`, `eq`, and more.
 
 Above are just a few examples for how to use starshift, but 
 [this](https://github.com/wdc756/StarShift/blob/main/docs/quickstart.md) is the full quickstart
-that covers all major features and how/where to use them.
+guide that covers all major features and how/where to use them.
 
 
 

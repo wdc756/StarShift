@@ -1,6 +1,6 @@
 [project]
 name = "starshift"
-version = "0.4.7"
+version = "0.5.0b0"
 description = "A lightweight dict -> class validation layer"
 authors = [{ name = "William Coker", email = "wdc23a@acu.edu" }]
 readme = "README.md"
