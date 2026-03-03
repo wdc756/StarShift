@@ -4,7 +4,11 @@
 
 ## 0.5.x
 
-### 0.5.0
+### 0.5.1bx
+- Fixed bugs with repr and serialize functions
+- Changed serialize functions to return `Any | Missing`
+
+### 0.5.0bx
 - Overhauled internal processing functions to be fully recursive
 - Overhauled error handling to be more informative
 - Refactored project layout

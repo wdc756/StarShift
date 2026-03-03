@@ -13,11 +13,34 @@ InvalidType = object()
 
 
 def run():
-    """"""
     class Test(ShiftModel):
-        val: int
+        val: Callable[[int], str]
+    @staticmethod # noqa
+    def func(x: int) -> str: return str(x)
 
-    test = Test(val=InvalidType)
+    test = Test(val=func)
+    assert test.val(42) == "42"
+    test = Test(**{"val": func})
+    assert test.val(42) == "42"
+
+    with pytest.raises(ShiftError):
+        _ = Test(val=InvalidType)
+    with pytest.raises(ShiftError):
+        _ = Test(**{"val": InvalidType})
+
+    @staticmethod # noqa
+    def func(y: str) -> str: return y
+    with pytest.raises(ShiftError):
+        _ = Test(val=func)
+    with pytest.raises(ShiftError):
+        _ = Test(**{"val": func})
+
+    @staticmethod # noqa
+    def func(x: int) -> int: return x
+    with pytest.raises(ShiftError):
+        _ = Test(val=func)
+    with pytest.raises(ShiftError):
+        _ = Test(**{"val": func})
 
 if __name__ == '__main__':
     run()

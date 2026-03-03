@@ -218,7 +218,7 @@ def test_shift_field_setter():
 
 def test_shift_field_repr():
     def t_repr(instance: Any, val: Any) -> str:
-        return 'val=' + repr(val + 1)
+        return repr(val + 1)
     class Test(ShiftModel):
         val = ShiftField(type=int, repr_func=t_repr)
 
@@ -241,7 +241,7 @@ def test_shift_field_repr_exclude():
 
 def test_shift_field_serializer():
     def serializer(instance: Any, val: int) -> Any:
-        return { 'val': val + 1 }
+        return val + 1
     class Test(ShiftModel):
         val = ShiftField(type=int, serializer=serializer)
 
